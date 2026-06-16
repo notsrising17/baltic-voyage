@@ -665,6 +665,21 @@ function findDateNear(text,kwRe){
   const dm=DATE_RE.exec(text.slice(km.index,km.index+60));
   return dm?normDate(dm[1]):null;
 }
+const TIME_RE=/(\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?|\d{1,2}\s*[ap]\.?m\.?)/i;
+function normTime(s){
+  s=String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+  const p2=n=>String(n).padStart(2,'0');
+  let m;
+  if(m=s.match(/^(\d{1,2}):(\d{2})([ap])\.?m\.?$/)){ let h=+m[1]; if(m[3]==='p'&&h<12)h+=12; if(m[3]==='a'&&h===12)h=0; return p2(h)+':'+m[2]; }
+  if(m=s.match(/^(\d{1,2}):(\d{2})$/)){ const h=+m[1]; if(h<=23&&+m[2]<=59) return p2(h)+':'+m[2]; return null; }
+  if(m=s.match(/^(\d{1,2})([ap])\.?m\.?$/)){ let h=+m[1]; if(m[2]==='p'&&h<12)h+=12; if(m[2]==='a'&&h===12)h=0; return p2(h)+':00'; }
+  return null;
+}
+function findTimeNear(text,kwRe){
+  const km=kwRe.exec(text); if(!km) return null;
+  const tm=TIME_RE.exec(text.slice(km.index,km.index+80)); // dates lack ':'/am-pm, so they're skipped
+  return tm?normTime(tm[1]):null;
+}
 function parseReservation(text){
   const raw=String(text||'').replace(/ /g,' ');
   const flat=raw.replace(/\s+/g,' ').trim();
@@ -672,22 +687,28 @@ function parseReservation(text){
   const out={};
   const cityHit=CITIES.find(c=>new RegExp('\\b'+c.name+'\\b','i').test(flat));
   if(cityHit) out.city=cityHit.id;
-  const ci=findDateNear(flat,/(check[\s-]*in|arrival)/i);
-  const co=findDateNear(flat,/(check[\s-]*out|departure)/i);
+  const ciRe=/(check[\s-]*in|arrival)/i, coRe=/(check[\s-]*out|departure)/i;
+  const ci=findDateNear(flat,ciRe);
+  const co=findDateNear(flat,coRe);
   if(ci) out.checkIn=ci;
   if(co) out.checkOut=co;
+  const cit=findTimeNear(flat,ciRe), cot=findTimeNear(flat,coRe);
+  if(cit) out.checkInTime=cit;
+  if(cot) out.checkOutTime=cot;
   const cm=flat.match(/(?:confirmation|booking|reservation|reference)[^:#\n]{0,25}?[:#]\s*([A-Z0-9][A-Z0-9-]{4,})/i)
         || flat.match(/(?:confirmation|booking|reservation|reference)\b[^A-Za-z0-9]{1,4}((?=[A-Za-z0-9-]*\d)[A-Z0-9][A-Z0-9-]{4,})/i);
   if(cm) out.confirmation=cm[1];
-  const pm=flat.match(/(?:tel|phone|call)?\s*(\+?\d[\d ()\-]{7,}\d)/i);
-  if(pm) out.phone=pm[1].trim();
+  // Phone must be labelled or in international (+) form, so a bare numeric confirmation isn't mistaken for it.
+  const pm=flat.match(/(?:tel(?:ephone)?|phone|mobile|cell|call|fax)\b[^A-Za-z0-9+]{0,5}(\+?\d[\d ()\-]{6,}\d)/i)
+        || flat.match(/(\+\d[\d ()\-]{7,}\d)/);
+  if(pm){ const ph=pm[1].trim(); if(ph.replace(/\D/g,'')!==String(out.confirmation||'').replace(/\D/g,'')) out.phone=ph; }
   const nameLine=lines.find(l=>/\b(hotel|hostel|inn|guesthouse|apartments?|resort|hof|palace|lodge|b&b)\b/i.test(l)&&l.length<=60);
   if(nameLine) out.name=nameLine;
   if(cityHit){
     const addr=lines.find(l=>new RegExp('\\b'+cityHit.name+'\\b','i').test(l)&&/\d/.test(l)&&l.length<=80&&l!==out.name);
     if(addr) out.address=addr;
   }
-  out._found=['name','city','checkIn','checkOut','confirmation','address','phone'].filter(k=>out[k]).length;
+  out._found=['name','city','checkIn','checkInTime','checkOut','checkOutTime','confirmation','address','phone'].filter(k=>out[k]).length;
   return out;
 }
 function importPDF(input){
@@ -790,8 +811,8 @@ function renderHotels(){
             <div class="m">${c.flag} ${esc(c.name)}${nights!=null?` · ${nights} night${nights!==1?'s':''}`:''}</div></div>
         </div>
         <div class="ibody">
-          ${h.checkIn?kv('Check-in',`${fmtDate(h.checkIn,{weekday:'short',day:'numeric',month:'short'})}`):''}
-          ${h.checkOut?kv('Check-out',`${fmtDate(h.checkOut,{weekday:'short',day:'numeric',month:'short'})}`):''}
+          ${h.checkIn?kv('Check-in',`${fmtDate(h.checkIn,{weekday:'short',day:'numeric',month:'short'})}${h.checkInTime?` · ${esc(h.checkInTime)}`:''}`):''}
+          ${h.checkOut?kv('Check-out',`${fmtDate(h.checkOut,{weekday:'short',day:'numeric',month:'short'})}${h.checkOutTime?` · ${esc(h.checkOutTime)}`:''}`):''}
           ${h.confirmation?kv('Confirmation',`<span class="v mono">${esc(h.confirmation)}</span>`,true):''}
           ${h.address?kv('Address',esc(h.address)):''}
           ${h.phone?kv('Phone',`<a href="tel:${esc(h.phone)}">${esc(h.phone)}</a>`,true):''}
@@ -1038,7 +1059,9 @@ const FORMS={
     {k:'name',l:'Hotel name',req:true,ph:'e.g. Hotel St. Petersbourg'},
     {k:'city',l:'City',type:'city'},
     {k:'checkIn',l:'Check-in',type:'date',half:1},
+    {k:'checkInTime',l:'Check-in time',type:'time',half:1},
     {k:'checkOut',l:'Check-out',type:'date',half:1},
+    {k:'checkOutTime',l:'Check-out time',type:'time',half:1},
     {k:'confirmation',l:'Confirmation #',ph:'Booking reference'},
     {k:'address',l:'Address',ph:'Street, district'},
     {k:'phone',l:'Phone',type:'tel',half:1},
