@@ -629,6 +629,103 @@ function importData(input){
   reader.readAsText(file);
 }
 
+/* ---- Import a reservation from a PDF (text-based; parsed on-device) ---- */
+const PDFJS_SRC='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let pdfLibPromise=null;
+function loadPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(pdfLibPromise) return pdfLibPromise;
+  pdfLibPromise=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=PDFJS_SRC;
+    s.onload=()=>{ try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;}catch(e){} res(window.pdfjsLib); };
+    s.onerror=()=>{ pdfLibPromise=null; rej(new Error('pdf.js failed to load')); };
+    document.head.appendChild(s);
+  });
+  return pdfLibPromise;
+}
+const MONTHS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+const DATE_RE=/(\d{4}-\d{2}-\d{2}|\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\.?,?\s+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/;
+function isoDate(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function normDate(s){
+  s=String(s||'').trim(); let m;
+  if(m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/)) return isoDate(m[1],+m[2],+m[3]);
+  if(m=s.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})$/)){ const mo=MONTHS[m[2].slice(0,3).toLowerCase()]; if(mo) return isoDate(m[3],mo,m[1]); }
+  if(m=s.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/)){ const mo=MONTHS[m[1].slice(0,3).toLowerCase()]; if(mo) return isoDate(m[3],mo,m[2]); }
+  if(m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/)){
+    let a=+m[1],b=+m[2],y=m[3]; if(y.length===2)y='20'+y;
+    let day,mon; if(a>12){day=a;mon=b;} else if(b>12){mon=a;day=b;} else {day=a;mon=b;} // assume day/month (European)
+    if(mon>=1&&mon<=12&&day>=1&&day<=31) return isoDate(y,mon,day);
+  }
+  return null;
+}
+function findDateNear(text,kwRe){
+  const km=kwRe.exec(text); if(!km) return null;
+  const dm=DATE_RE.exec(text.slice(km.index,km.index+60));
+  return dm?normDate(dm[1]):null;
+}
+function parseReservation(text){
+  const raw=String(text||'').replace(/ /g,' ');
+  const flat=raw.replace(/\s+/g,' ').trim();
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const out={};
+  const cityHit=CITIES.find(c=>new RegExp('\\b'+c.name+'\\b','i').test(flat));
+  if(cityHit) out.city=cityHit.id;
+  const ci=findDateNear(flat,/(check[\s-]*in|arrival)/i);
+  const co=findDateNear(flat,/(check[\s-]*out|departure)/i);
+  if(ci) out.checkIn=ci;
+  if(co) out.checkOut=co;
+  const cm=flat.match(/(?:confirmation|booking|reservation|reference)[^:#\n]{0,25}?[:#]\s*([A-Z0-9][A-Z0-9-]{4,})/i)
+        || flat.match(/(?:confirmation|booking|reservation|reference)\b[^A-Za-z0-9]{1,4}((?=[A-Za-z0-9-]*\d)[A-Z0-9][A-Z0-9-]{4,})/i);
+  if(cm) out.confirmation=cm[1];
+  const pm=flat.match(/(?:tel|phone|call)?\s*(\+?\d[\d ()\-]{7,}\d)/i);
+  if(pm) out.phone=pm[1].trim();
+  const nameLine=lines.find(l=>/\b(hotel|hostel|inn|guesthouse|apartments?|resort|hof|palace|lodge|b&b)\b/i.test(l)&&l.length<=60);
+  if(nameLine) out.name=nameLine;
+  if(cityHit){
+    const addr=lines.find(l=>new RegExp('\\b'+cityHit.name+'\\b','i').test(l)&&/\d/.test(l)&&l.length<=80&&l!==out.name);
+    if(addr) out.address=addr;
+  }
+  out._found=['name','city','checkIn','checkOut','confirmation','address','phone'].filter(k=>out[k]).length;
+  return out;
+}
+function importPDF(input){
+  const file=input.files&&input.files[0]; input.value='';
+  if(!file) return;
+  if(file.type&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name)){ toast('Please choose a PDF file'); return; }
+  if(!navigator.onLine&&!window.pdfjsLib){ toast('Reading PDFs needs internet the first time'); return; }
+  toast('Reading PDF…');
+  loadPdfJs().then(pdfjsLib=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      pdfjsLib.getDocument({data:new Uint8Array(reader.result)}).promise.then(async pdf=>{
+        let text='';
+        for(let i=1;i<=pdf.numPages;i++){
+          const page=await pdf.getPage(i);
+          const content=await page.getTextContent();
+          // Reconstruct line breaks: pdf.js returns positioned items, not lines.
+          let line='', lastY=null;
+          for(const it of content.items){
+            const y=it.transform?it.transform[5]:null;
+            if(lastY!==null && y!==null && Math.abs(y-lastY)>3){ text+=line.trim()+'\n'; line=''; }
+            line+=it.str+(it.str.endsWith(' ')?'':' ');
+            if(it.hasEOL){ text+=line.trim()+'\n'; line=''; lastY=null; }
+            else if(y!==null){ lastY=y; }
+          }
+          text+=line.trim()+'\n';
+        }
+        const fields=parseReservation(text);
+        const found=fields._found; delete fields._found;
+        toast(found?`Found ${found} detail${found!==1?'s':''} — please review`:'No details found — fill them in');
+        openForm('hotel',null,fields);
+      }).catch(()=>toast('Could not read that PDF — it may be a scanned image'));
+    };
+    reader.onerror=()=>toast('Could not read that file');
+    reader.readAsArrayBuffer(file);
+  }).catch(()=>toast('Couldn’t load the PDF reader — check your connection'));
+}
+
 /* ====================== DAYS / ITINERARY ====================== */
 function renderDays(){
   const items=[...S.itinerary].sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.time||'').localeCompare(b.time||''));
@@ -713,7 +810,11 @@ function renderHotels(){
   $('#hotels').innerHTML=`<div class="wrap">
     <div class="sec-head"><div><div class="eyebrow">Where you'll rest</div><h2>Hotels</h2>
       <div class="sub">${items.length} stay${items.length!==1?'s':''} saved</div></div>
-      <button class="btn sm" onclick="openForm('hotel')">+ Hotel</button></div>
+      <div style="display:flex;gap:8px;flex:none;">
+        <button class="btn ghost sm" onclick="document.getElementById('pdfFile').click()">⬆ PDF</button>
+        <button class="btn sm" onclick="openForm('hotel')">+ Hotel</button>
+      </div>
+      <input id="pdfFile" type="file" accept="application/pdf,.pdf" style="display:none;" onchange="importPDF(this)"></div>
     ${body}</div>`;
 }
 function kv(k,v,raw){return `<div class="kv"><span class="k">${k}</span><span class="${raw?'':'v'}">${raw?v:v}</span></div>`;}
@@ -1042,7 +1143,7 @@ window.addEventListener('offline',netStatus);
 netStatus();
 
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation});
 
 /* ---- boot ---- */
 go('trip');

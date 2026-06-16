@@ -15,7 +15,9 @@ phone's home screen and it works offline.
   clearing your browser).
 - **Days** — a day-by-day itinerary you build and edit on the go.
 - **Hotels** — every stay with check-in / check-out, confirmation numbers,
-  address, phone (tap to call) and one-tap directions.
+  address, phone (tap to call) and one-tap directions. **Import from PDF**:
+  upload a booking confirmation and the app reads it on-device to pre-fill a
+  hotel for you to review (works on text-based PDFs, not scanned images).
 - **Places** — an interactive map (tap to drop a pin) plus a list of spots per
   city, with a curated set of starter sights you can keep or delete.
 - **Tools**
@@ -47,4 +49,6 @@ use **Add to Home Screen**.
 ## Privacy
 
 All trip data lives only in your browser. Clearing site data removes it; nothing
-is sent anywhere except the live weather and exchange-rate lookups.
+is sent anywhere except the live weather and exchange-rate lookups. PDF booking
+confirmations are read entirely on your device — the file is never uploaded. (The
+PDF reader library, like the map and fonts, is loaded once from a CDN.)
