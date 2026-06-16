@@ -259,6 +259,14 @@ body.offline #offlineDot{display:block;}
 #sheet .shead h3{font-size:23px;color:var(--teal-d);}
 #sheet .shead .x{font-size:26px;color:var(--muted);line-height:1;padding:4px 6px;}
 #sheetBody{overflow-y:auto;padding:4px 18px 18px;}
+.imp-hint{font-size:13px;color:var(--muted);margin:2px 0 12px;line-height:1.4;}
+.imp-list{display:flex;flex-direction:column;gap:6px;}
+.imp-row{display:flex;align-items:center;gap:11px;padding:9px 11px;border:1.5px solid var(--line);border-radius:11px;cursor:pointer;}
+.imp-row input{width:18px;height:18px;flex:none;accent-color:var(--teal-d);}
+.imp-when{flex:none;width:48px;font-weight:700;font-size:13px;color:var(--teal-d);font-variant-numeric:tabular-nums;}
+.imp-main{display:flex;flex-direction:column;min-width:0;}
+.imp-t{font-weight:600;font-size:14px;line-height:1.3;}
+.imp-m{font-size:12px;color:var(--muted);}
 .field{margin-bottom:13px;}
 .field label{display:block;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--teal-d);margin-bottom:5px;}
 .field input,.field select,.field textarea{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:11px;
@@ -711,7 +719,25 @@ function parseReservation(text){
   out._found=['name','city','checkIn','checkInTime','checkOut','checkOutTime','confirmation','address','phone'].filter(k=>out[k]).length;
   return out;
 }
-function importPDF(input){
+async function extractPdfText(pdf){
+  let text='';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const content=await page.getTextContent();
+    // Reconstruct line breaks: pdf.js returns positioned items, not lines.
+    let line='', lastY=null;
+    for(const it of content.items){
+      const y=it.transform?it.transform[5]:null;
+      if(lastY!==null && y!==null && Math.abs(y-lastY)>3){ text+=line.trim()+'\n'; line=''; }
+      line+=it.str+(it.str.endsWith(' ')?'':' ');
+      if(it.hasEOL){ text+=line.trim()+'\n'; line=''; lastY=null; }
+      else if(y!==null){ lastY=y; }
+    }
+    text+=line.trim()+'\n';
+  }
+  return text;
+}
+function readPdf(input,onText){
   const file=input.files&&input.files[0]; input.value='';
   if(!file) return;
   if(file.type&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name)){ toast('Please choose a PDF file'); return; }
@@ -720,31 +746,91 @@ function importPDF(input){
   loadPdfJs().then(pdfjsLib=>{
     const reader=new FileReader();
     reader.onload=()=>{
-      pdfjsLib.getDocument({data:new Uint8Array(reader.result)}).promise.then(async pdf=>{
-        let text='';
-        for(let i=1;i<=pdf.numPages;i++){
-          const page=await pdf.getPage(i);
-          const content=await page.getTextContent();
-          // Reconstruct line breaks: pdf.js returns positioned items, not lines.
-          let line='', lastY=null;
-          for(const it of content.items){
-            const y=it.transform?it.transform[5]:null;
-            if(lastY!==null && y!==null && Math.abs(y-lastY)>3){ text+=line.trim()+'\n'; line=''; }
-            line+=it.str+(it.str.endsWith(' ')?'':' ');
-            if(it.hasEOL){ text+=line.trim()+'\n'; line=''; lastY=null; }
-            else if(y!==null){ lastY=y; }
-          }
-          text+=line.trim()+'\n';
-        }
-        const fields=parseReservation(text);
-        const found=fields._found; delete fields._found;
-        toast(found?`Found ${found} detail${found!==1?'s':''} — please review`:'No details found — fill them in');
-        openForm('hotel',null,fields);
-      }).catch(()=>toast('Could not read that PDF — it may be a scanned image'));
+      pdfjsLib.getDocument({data:new Uint8Array(reader.result)}).promise
+        .then(extractPdfText).then(onText)
+        .catch(()=>toast('Could not read that PDF — it may be a scanned image'));
     };
     reader.onerror=()=>toast('Could not read that file');
     reader.readAsArrayBuffer(file);
   }).catch(()=>toast('Couldn’t load the PDF reader — check your connection'));
+}
+function importPDF(input){
+  readPdf(input,text=>{
+    const fields=parseReservation(text);
+    const found=fields._found; delete fields._found;
+    toast(found?`Found ${found} detail${found!==1?'s':''} — please review`:'No details found — fill them in');
+    openForm('hotel',null,fields);
+  });
+}
+
+/* ---- Import a day-by-day itinerary from a PDF ---- */
+function guessPlanType(t){
+  t=String(t).toLowerCase();
+  if(/\b(breakfast|lunch|dinner|brunch|restaurant|caf[eé]|coffee|drinks?|bar|dine|dinner|food|tasting|market)\b/.test(t)) return 'Food';
+  if(/\b(train|ferry|flight|fly|bus|coach|transfer|taxi|drive|airport|station|port|board|check[\s-]*in|departure|arrival|depart|arrive)\b/.test(t)) return 'Transport';
+  if(/\b(museum|cathedral|church|castle|square|tour|old town|gallery|monument|park|palace|fortress|fort|sightseeing|sights?|walk|viewpoint)\b/.test(t)) return 'Sight';
+  if(/\b(rest|relax|hotel|free time|nap|spa|leisure|checkout)\b/.test(t)) return 'Rest';
+  if(/\b(ticket|show|concert|cruise|workshop|class|game|match|activity|experience|sauna)\b/.test(t)) return 'Activity';
+  return 'Other';
+}
+function parseItinerary(text){
+  const lines=String(text||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  const items=[];
+  let curDate='', curCity='';
+  const timeStart=/^((?:\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?)|(?:\d{1,2}\s*[ap]\.?m\.?))\b/i;
+  for(const line of lines){
+    const tm=line.match(timeStart);
+    const bullet=/^[-–—•*▪·]\s+/.test(line);
+    const cHit=CITIES.find(c=>new RegExp('\\b'+c.name+'\\b','i').test(line));
+    if(!tm && !bullet){            // header / context line
+      const d=DATE_RE.exec(line); if(d){ const nd=normDate(d[1]); if(nd) curDate=nd; }
+      if(cHit) curCity=cHit.id;
+      continue;
+    }
+    let time='', title=line;       // item line
+    if(tm){ time=normTime(tm[1])||''; title=line.slice(tm[0].length); }
+    else { title=line.replace(/^[-–—•*▪·]\s+/,''); }
+    title=title.replace(/^[\s:–—-]+/,'').trim();
+    if(title.length<2) continue;
+    // Day-header city wins; only fall back to a city named in the item line if none is known yet.
+    const city=curCity || (cHit?cHit.id:CITIES[0].id);
+    items.push({title, date:curDate, time, city, type:guessPlanType(title), notes:''});
+  }
+  return items;
+}
+let pendingPlans=[];
+function importItineraryPDF(input){
+  readPdf(input,text=>{
+    const plans=parseItinerary(text);
+    if(!plans.length){ toast('No itinerary items found — is it a day-by-day list?'); return; }
+    openItineraryReview(plans);
+  });
+}
+function openItineraryReview(plans){
+  pendingPlans=plans;
+  $('#sheetTitle').textContent=`Review itinerary (${plans.length})`;
+  const rows=plans.map((p,i)=>{
+    const c=cityById(p.city), t=PLAN_TYPES[p.type]||PLAN_TYPES.Other;
+    const d=p.date?fmtDate(p.date,{day:'numeric',month:'short'}):'No date';
+    return `<label class="imp-row"><input type="checkbox" checked data-i="${i}">
+      <span class="imp-when">${esc(p.time||'—')}</span>
+      <span class="imp-main"><span class="imp-t">${t.emoji} ${esc(p.title)}</span>
+      <span class="imp-m">${d} · ${c.flag} ${esc(c.name)}</span></span></label>`;
+  }).join('');
+  $('#sheetBody').innerHTML=`<p class="imp-hint">Found these plans. Untick any you don't want, then add them to your Days. You can edit each one afterwards.</p>
+    <div class="imp-list">${rows}</div>
+    <button class="btn" style="width:100%;margin-top:14px;" onclick="confirmItineraryImport()">Add selected to Days</button>`;
+  openSheet();
+}
+function confirmItineraryImport(){
+  let n=0;
+  $('#sheetBody').querySelectorAll('input[type=checkbox]').forEach(b=>{
+    if(b.checked){ const p=pendingPlans[+b.dataset.i]; if(p){ S.itinerary.push(Object.assign({id:uid()},p)); n++; } }
+  });
+  pendingPlans=[];
+  save(); closeSheet();
+  toast(n?`${n} plan${n!==1?'s':''} added ✓`:'Nothing added');
+  render('days');
 }
 
 /* ====================== DAYS / ITINERARY ====================== */
@@ -771,7 +857,11 @@ function renderDays(){
   $('#days').innerHTML=`<div class="wrap">
     <div class="sec-head"><div><div class="eyebrow">Itinerary</div><h2>Days</h2>
       <div class="sub">${items.length} plan${items.length!==1?'s':''} across your trip</div></div>
-      <button class="btn sm" onclick="openForm('itinerary')">+ Plan</button></div>
+      <div style="display:flex;gap:8px;flex:none;">
+        <button class="btn ghost sm" onclick="document.getElementById('itinPdf').click()">⬆ PDF</button>
+        <button class="btn sm" onclick="openForm('itinerary')">+ Plan</button>
+      </div>
+      <input id="itinPdf" type="file" accept="application/pdf,.pdf" style="display:none;" onchange="importItineraryPDF(this)"></div>
     ${body}</div>`;
 }
 function renderPlanCard(it){
@@ -1166,7 +1256,7 @@ window.addEventListener('offline',netStatus);
 netStatus();
 
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport});
 
 /* ---- boot ---- */
 go('trip');
