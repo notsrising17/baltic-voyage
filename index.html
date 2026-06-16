@@ -267,6 +267,10 @@ body.offline #offlineDot{display:block;}
 .imp-main{display:flex;flex-direction:column;min-width:0;}
 .imp-t{font-weight:600;font-size:14px;line-height:1.3;}
 .imp-m{font-size:12px;color:var(--muted);}
+.mymap-card{margin:12px 0 4px;}
+.mymap-head{font-weight:700;font-size:13px;color:var(--teal-d);margin-bottom:6px;}
+.mymap-frame{position:relative;width:100%;height:300px;border-radius:14px;overflow:hidden;border:1.5px solid var(--line);}
+.mymap-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
 .field{margin-bottom:13px;}
 .field label{display:block;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--teal-d);margin-bottom:5px;}
 .field input,.field select,.field textarea{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:11px;
@@ -592,6 +596,9 @@ function openTripForm(){
     </div>
     <div class="field"><label>Home currency</label>
       <select name="homeCurrency">${CURRENCIES.map(c=>`<option ${c===(m.homeCurrency||'USD')?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field"><label>My Google Map (optional)</label>
+      <input name="myMapUrl" type="url" placeholder="Paste a Google My Maps link" value="${esc(m.myMapUrl||'')}">
+      <div class="hint">In Google My Maps, open ⋮ → “Embed on my site” (or use the share link). Your custom map then shows on the Places screen. Needs internet to load.</div></div>
     <div class="field"><div class="hint">Leave dates blank to use the earliest and latest dates from your plans instead.</div></div>
     <button type="submit" class="btn full">Save trip details</button>
   </form>`;
@@ -600,7 +607,7 @@ function openTripForm(){
     const fd=new FormData(e.target);
     const start=fd.get('startDate')||'', end=fd.get('endDate')||'';
     if(start&&end&&end<start){ toast('End date is before the start date'); return; }
-    S.meta=Object.assign({},S.meta,{startDate:start,endDate:end,homeCurrency:fd.get('homeCurrency')||'USD'});
+    S.meta=Object.assign({},S.meta,{startDate:start,endDate:end,homeCurrency:fd.get('homeCurrency')||'USD',myMapUrl:(fd.get('myMapUrl')||'').trim()});
     save(); closeSheet(); toast('Trip details saved ✓'); render(activeTab);
   });
   openSheet();
@@ -967,9 +974,35 @@ function renderPlaces(){
     <div id="map"></div>
     <div id="mapFallback" class="empty" style="margin-top:0;"><span class="em-ico">🗺️</span>
       <p>Map needs an internet connection. Your saved places are listed below and open in your phone's maps app.</p></div>
+    ${myMapCard()}
     <div class="filterbar">${pills}</div>
     ${list}</div>`;
   setTimeout(initMap,60);
+}
+// Build a safe Google Maps embed src from a pasted link. We construct the URL
+// ourselves from a validated map id / query, so a pasted string can't inject markup.
+function embedMapSrc(input){
+  const s=String(input||'').trim(); if(!s) return null;
+  const mid=s.match(/[?&]mid=([A-Za-z0-9_\-]+)/);            // Google "My Maps"
+  if(mid) return 'https://www.google.com/maps/d/embed?mid='+mid[1];
+  if(/maps\.app\.goo\.gl|goo\.gl\/maps/i.test(s)) return false;  // short link: can't resolve in-browser
+  let q='';
+  let mq=s.match(/[?&](?:q|query)=([^&]+)/); if(mq) q=decodeURIComponent(mq[1].replace(/\+/g,' '));
+  if(!q){ const pl=s.match(/\/place\/([^\/@?]+)/); if(pl) q=decodeURIComponent(pl[1].replace(/\+/g,' ')); }
+  if(!q){ const at=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/); if(at) q=at[1]+','+at[2]; }
+  if(!q && !/^https?:\/\//i.test(s) && s.length<=80) q=s;   // a bare place name typed in
+  if(q) return 'https://maps.google.com/maps?q='+encodeURIComponent(q)+'&z=14&output=embed';
+  return null;
+}
+function myMapCard(){
+  const url=(S.meta&&S.meta.myMapUrl)||''; if(!url) return '';
+  const note=t=>`<div class="mymap-card"><div class="mymap-head">🗺️ My Google Map</div><div class="hint" style="padding:2px;">${t}</div></div>`;
+  const src=embedMapSrc(url);
+  if(src===false) return note('That looks like a short link. Open it, then copy the full link — or in Google My Maps use “Embed on my site”.');
+  if(!src) return note('Couldn’t read that map link. In Google My Maps use “Embed on my site”, or paste a link containing <code>mid=</code>.');
+  if(!navigator.onLine) return note('Your map needs an internet connection to load.');
+  return `<div class="mymap-card"><div class="mymap-head">🗺️ My Google Map</div>
+    <div class="mymap-frame"><iframe src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe></div></div>`;
 }
 function setFilter(id){placeFilter=id;renderPlaces();}
 function toggleVisited(id){const p=S.places.find(x=>x.id===id);if(p){p.visited=!p.visited;save();renderPlaces();}}
@@ -1256,7 +1289,7 @@ window.addEventListener('offline',netStatus);
 netStatus();
 
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,embedMapSrc});
 
 /* ---- boot ---- */
 go('trip');
