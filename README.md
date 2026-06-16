@@ -9,7 +9,10 @@ phone's home screen and it works offline.
 
 ## Features
 
-- **Trip** — at-a-glance overview with a live countdown and your four-city route.
+- **Trip** — at-a-glance overview with a live countdown and your four-city
+  route. Set your start/end dates and home currency, and **back up / restore**
+  all your trip data as a JSON file (handy when switching phones or after
+  clearing your browser).
 - **Days** — a day-by-day itinerary you build and edit on the go.
 - **Hotels** — every stay with check-in / check-out, confirmation numbers,
   address, phone (tap to call) and one-tap directions.

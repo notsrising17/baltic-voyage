@@ -550,14 +550,83 @@ function renderTrip(){
         <div class="stat"><b>${planCount}</b><span>Plans</span></div>
         <div class="stat"><b>${placeCount}</b><span>Places</span></div>
       </div>
-      <div class="minihead">Your Journey</div>
+      <div class="minihead" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Your Journey</span>
+        <button class="btn ghost sm" onclick="openTripForm()">✎ Dates</button>
+      </div>
       <div style="font-size:12.5px;color:var(--muted);margin:-6px 2px 12px;">${esc(datesLine)}</div>
       ${cityCards}
+      <div class="divider"></div>
+      <div class="minihead">Backup</div>
+      <div style="font-size:12px;color:var(--muted);margin:-6px 2px 12px;">
+        Everything stays on this device. Save a backup file you can restore on a new phone or after clearing your browser.
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="exportData()">⬇ Export</button>
+        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="document.getElementById('importFile').click()">⬆ Import</button>
+        <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importData(this)">
+      </div>
       <div class="divider"></div>
       <div style="text-align:center;color:var(--muted);font-size:12px;padding:4px 0 8px;">
         ✦ A keepsake for the road ✦<br>All your details stay on this device.
       </div>
     </div>`;
+}
+
+/* ---- Trip details (dates + home currency) ---- */
+function openTripForm(){
+  const m=S.meta||{};
+  $('#sheetTitle').textContent='Trip details';
+  $('#sheetBody').innerHTML=`<form id="theForm">
+    <div class="field half2">
+      <div><label>Start date</label><input name="startDate" type="date" value="${esc(m.startDate||'')}"></div>
+      <div><label>End date</label><input name="endDate" type="date" value="${esc(m.endDate||'')}"></div>
+    </div>
+    <div class="field"><label>Home currency</label>
+      <select name="homeCurrency">${CURRENCIES.map(c=>`<option ${c===(m.homeCurrency||'USD')?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field"><div class="hint">Leave dates blank to use the earliest and latest dates from your plans instead.</div></div>
+    <button type="submit" class="btn full">Save trip details</button>
+  </form>`;
+  $('#theForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const start=fd.get('startDate')||'', end=fd.get('endDate')||'';
+    if(start&&end&&end<start){ toast('End date is before the start date'); return; }
+    S.meta=Object.assign({},S.meta,{startDate:start,endDate:end,homeCurrency:fd.get('homeCurrency')||'USD'});
+    save(); closeSheet(); toast('Trip details saved ✓'); render(activeTab);
+  });
+  openSheet();
+}
+
+/* ---- Backup: export / import all data ---- */
+function exportData(){
+  try{
+    const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`baltic-voyage-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast('Backup downloaded ✓');
+  }catch(e){ toast('Could not export backup'); }
+}
+function importData(input){
+  const file=input.files&&input.files[0]; input.value='';
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    let data;
+    try{ data=JSON.parse(reader.result); }
+    catch(e){ toast('That file isn’t a valid backup'); return; }
+    if(!data||typeof data!=='object'||!('hotels'in data)||!('itinerary'in data)||!('places'in data)){
+      toast('That file isn’t a Baltic Voyage backup'); return;
+    }
+    if(!confirm('Replace all current trip data with this backup? This cannot be undone.')) return;
+    S=Object.assign({meta:{startDate:'',endDate:'',homeCurrency:'USD'},hotels:[],itinerary:[],places:[],packing:[],rates:null},data);
+    wxCache=null; save(); render(activeTab); toast('Backup restored ✓');
+  };
+  reader.onerror=()=>toast('Could not read that file');
+  reader.readAsText(file);
 }
 
 /* ====================== DAYS / ITINERARY ====================== */
@@ -973,7 +1042,7 @@ window.addEventListener('offline',netStatus);
 netStatus();
 
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData});
 
 /* ---- boot ---- */
 go('trip');
