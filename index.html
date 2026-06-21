@@ -6,7 +6,7 @@
 <title>Baltic Voyage</title>
 <meta name="description" content="An interactive travel companion for a Helsinki → Tallinn → Riga → Vilnius summer journey.">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#12454A">
+<meta name="theme-color" content="#0F3D3A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Baltic Voyage">
@@ -15,7 +15,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <!-- Leaflet (interactive map) — degrades gracefully when offline -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -23,11 +23,11 @@
 
 <style>
 :root{
-  --cream:#F6F1E7; --paper:#FFFDF8; --ink:#22302E; --muted:#6E7B78;
-  --teal:#1E6E73; --teal-d:#12454A; --navy:#0E2A33;
-  --amber:#D99A4E; --amber-d:#B5793A; --terra:#C25B3A;
-  --line:#E7DFCC; --line-2:#EFE9DA;
-  --ok:#3E8E62; --shadow:0 6px 22px rgba(18,69,74,.10), 0 2px 6px rgba(18,69,74,.06);
+  --cream:#F2E7D0; --paper:#FBF4E4; --paper-2:#F6ECD6; --ink:#2A2014; --muted:#7E7058;
+  --teal:#1C6B61; --teal-d:#0F3D3A; --navy:#0B2A28;
+  --amber:#E0A23E; --amber-d:#A8702A; --amber-glow:#F6CB6E; --terra:#BC5638; --terra-d:#92402A;
+  --line:#E4D5B7; --line-2:#EEE2C6;
+  --ok:#3E8E62; --shadow:0 6px 22px rgba(70,46,16,.13), 0 2px 6px rgba(70,46,16,.07);
   --nav-h:64px; --top-h:54px;
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
 }
@@ -38,7 +38,7 @@ body{
   font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   font-size:15px; line-height:1.5; overflow:hidden;
 }
-h1,h2,h3,.display{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;letter-spacing:.2px;}
+h1,h2,h3,.display{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-weight:600;letter-spacing:.2px;}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
 input,select,textarea{font-family:inherit;font-size:15px;}
 a{color:var(--teal);}
@@ -53,7 +53,7 @@ a{color:var(--teal);}
 }
 #topbar .brand{display:flex;align-items:center;gap:9px;}
 #topbar .star{width:22px;height:22px;flex:none;}
-#topbar .title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;letter-spacing:.3px;line-height:1;}
+#topbar .title{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;letter-spacing:.3px;line-height:1;}
 #countChip{margin-left:auto;font-size:11.5px;font-weight:600;letter-spacing:.3px;
   background:rgba(246,241,231,.14);border:1px solid rgba(246,241,231,.28);
   padding:5px 11px;border-radius:999px;white-space:nowrap;}
@@ -87,19 +87,28 @@ body.offline #offlineDot{display:block;}
 .sec-head .sub{font-size:12.5px;color:var(--muted);margin-top:2px;}
 .eyebrow{font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--amber-d);}
 
-.btn{display:inline-flex;align-items:center;gap:7px;background:var(--amber);color:#3a2410;
-  font-weight:600;font-size:13.5px;padding:9px 15px;border-radius:11px;box-shadow:var(--shadow);transition:transform .12s,filter .2s;}
+.btn{display:inline-flex;align-items:center;gap:7px;
+  background:linear-gradient(168deg,var(--amber-glow),var(--amber) 52%,var(--amber-d));color:#3c2408;
+  font-weight:600;font-size:13.5px;padding:9px 15px;border-radius:11px;border:1px solid rgba(120,80,20,.28);
+  box-shadow:0 5px 14px rgba(120,80,20,.22),inset 0 1px 0 rgba(255,255,255,.42);transition:transform .12s,filter .2s;}
 .btn:active{transform:scale(.96);}
 .btn.ghost{background:transparent;color:var(--teal-d);border:1.5px solid var(--line);box-shadow:none;}
 .btn.sm{padding:6px 11px;font-size:12.5px;border-radius:9px;}
 .btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+/* generic inline icon (replaces emoji) + small SVG flags */
+.ic{width:1.08em;height:1.08em;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.17em;flex:none;}
+.chip .ic{width:13px;height:13px;}
+.catic{display:inline-flex;vertical-align:-.16em;}
+.flg{width:21px;height:14px;border-radius:3px;display:inline-block;vertical-align:-.18em;box-shadow:0 0 0 1px rgba(60,40,15,.16);overflow:hidden;}
 
 .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;}
 .empty{text-align:center;color:var(--muted);padding:34px 18px;border:1.5px dashed var(--line);border-radius:16px;background:rgba(255,253,248,.6);}
-.empty .em-ico{font-size:30px;display:block;margin-bottom:8px;opacity:.85;}
+.empty .em-ico{font-size:30px;display:block;margin-bottom:8px;opacity:.85;color:var(--amber-d);}
+.empty .em-ico svg{width:34px;height:34px;stroke-width:1.5;}
 .empty p{font-size:13.5px;margin-bottom:14px;}
 
-.divider{height:1px;background:var(--line-2);margin:16px 0;}
+.divider{height:11px;width:min(100%,440px);margin:18px auto;opacity:.6;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='11' viewBox='0 0 22 11'%3E%3Cpath d='M0 8.5L5.5 2.5L11 8.5L16.5 2.5L22 8.5' fill='none' stroke='%23A8702A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") repeat-x center/22px 11px;}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.3px;
   padding:3px 9px;border-radius:999px;background:rgba(30,110,115,.10);color:var(--teal-d);}
 .chip.amber{background:rgba(217,154,78,.16);color:var(--amber-d);}
@@ -107,34 +116,38 @@ body.offline #offlineDot{display:block;}
 
 /* ---------- Trip / Home ---------- */
 .hero{position:relative;border-radius:0 0 26px 26px;overflow:hidden;
-  background:linear-gradient(160deg,var(--teal) 0%,var(--teal-d) 55%,var(--navy) 100%);
-  color:var(--cream);padding:24px 20px 64px;box-shadow:var(--shadow);}
-.hero .eyebrow{color:var(--amber);}
-.hero h1{font-size:40px;line-height:.98;margin:6px 0 8px;letter-spacing:.5px;}
-.hero .route{font-size:13.5px;color:rgba(246,241,231,.86);font-weight:500;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
-.hero .route .arr{color:var(--amber);font-weight:700;}
-.hero .sun{position:absolute;top:18px;right:18px;width:64px;height:64px;border-radius:50%;
-  background:radial-gradient(circle at 38% 38%,#F5D38E,var(--amber));box-shadow:0 0 38px rgba(217,154,78,.55);opacity:.9;}
-.hero .wave{position:absolute;left:0;right:0;bottom:-1px;width:100%;display:block;}
+  background:linear-gradient(165deg,#1C6B61 0%,var(--teal-d) 52%,var(--navy) 100%);
+  color:var(--cream);padding:24px 20px 86px;box-shadow:var(--shadow);}
+.hero .eyebrow{color:var(--amber-glow);position:relative;z-index:2;}
+.hero h1{font-size:44px;font-weight:900;line-height:.94;margin:6px 0 8px;letter-spacing:.3px;position:relative;z-index:2;
+  text-shadow:0 1px 0 rgba(0,0,0,.18);}
+.hero .route{font-size:13.5px;color:rgba(246,241,231,.88);font-weight:500;display:flex;flex-wrap:wrap;gap:6px;align-items:center;position:relative;z-index:2;}
+.hero .route .arr{color:var(--amber-glow);font-weight:700;}
+.hero .folksun{position:absolute;top:14px;right:14px;width:74px;height:74px;opacity:.95;z-index:1;
+  filter:drop-shadow(0 0 22px rgba(246,203,110,.45));}
+.hero .skyline{position:absolute;left:0;right:0;bottom:11px;width:100%;height:60px;display:block;z-index:1;}
+.hero .heroband{position:absolute;left:0;right:0;bottom:0;height:12px;display:block;z-index:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0 9L6 3L12 9L18 3L24 9' fill='none' stroke='%23E0A23E' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") repeat-x center/24px 12px;opacity:.9;}
 .countdown{display:flex;gap:10px;margin-top:18px;}
 .cd-box{background:rgba(246,241,231,.13);border:1px solid rgba(246,241,231,.22);border-radius:13px;
   padding:9px 4px;text-align:center;flex:1;backdrop-filter:blur(2px);}
-.cd-box b{display:block;font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;line-height:1;color:#fff;}
+.cd-box b{display:block;font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:700;line-height:1;color:#fff;}
 .cd-box span{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(246,241,231,.8);}
 
 .minihead{font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--amber-d);margin:22px 2px 11px;}
 .citycard{display:flex;align-items:center;gap:13px;padding:13px 14px;border-radius:15px;background:var(--paper);
   border:1px solid var(--line);box-shadow:var(--shadow);margin-bottom:11px;position:relative;overflow:hidden;}
-.citycard .ord{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:700;color:var(--line);width:34px;text-align:center;flex:none;line-height:1;}
+.citycard .ord{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:32px;font-weight:900;color:rgba(188,86,56,.34);width:34px;text-align:center;flex:none;line-height:1;}
 .citycard .ci-main{flex:1;min-width:0;}
-.citycard .ci-name{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:700;color:var(--teal-d);line-height:1;}
-.citycard .ci-sub{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-.citycard .flag{font-size:22px;flex:none;}
-.citycard .accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--amber);}
+.citycard .ci-name{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;color:var(--teal-d);line-height:1;}
+.citycard .ci-sub{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.citycard .ci-sub .ic{color:var(--amber-d);}
+.citycard .flag{flex:none;display:flex;}
+.citycard .accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(var(--amber-glow),var(--amber),var(--amber-d));}
 
 .quickrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px;}
 .stat{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:13px 10px;text-align:center;box-shadow:var(--shadow);}
-.stat b{display:block;font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:700;color:var(--terra);line-height:1;}
+.stat b{display:block;font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:27px;font-weight:700;color:var(--terra);line-height:1;}
 .stat span{font-size:10.5px;color:var(--muted);letter-spacing:.4px;}
 
 /* ---------- List item cards ---------- */
@@ -142,7 +155,8 @@ body.offline #offlineDot{display:block;}
   margin-bottom:12px;overflow:hidden;}
 .item .ihead{display:flex;align-items:flex-start;gap:11px;padding:13px 14px 11px;}
 .item .ihead .ico{width:38px;height:38px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;
-  font-size:19px;background:rgba(30,110,115,.10);}
+  font-size:19px;background:rgba(30,110,115,.10);color:var(--teal-d);}
+.item .ihead .ico svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
 .item .ititle{flex:1;min-width:0;}
 .item .ititle .t{font-weight:700;font-size:15px;color:var(--ink);line-height:1.2;}
 .item .ititle .m{font-size:12px;color:var(--muted);margin-top:3px;}
@@ -161,7 +175,7 @@ body.offline #offlineDot{display:block;}
 /* date group */
 .daygroup{margin-bottom:6px;}
 .dayhead{display:flex;align-items:baseline;gap:9px;margin:14px 2px 9px;}
-.dayhead .dnum{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--teal-d);}
+.dayhead .dnum{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;color:var(--teal-d);}
 .dayhead .ddow{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.4px;}
 .dayhead .dcity{margin-left:auto;}
 .tl-time{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;color:var(--amber-d);
@@ -215,7 +229,7 @@ body.offline #offlineDot{display:block;}
 .phrase{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 14px;background:var(--paper);
   border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);margin-bottom:9px;}
 .phrase .en{font-size:12px;color:var(--muted);font-weight:600;}
-.phrase .loc{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:700;color:var(--teal-d);line-height:1.1;margin-top:1px;}
+.phrase .loc{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:21px;font-weight:700;color:var(--teal-d);line-height:1.1;margin-top:1px;}
 .phrase .pro{font-size:12px;color:var(--amber-d);font-style:italic;margin-top:2px;}
 .phrase .say{width:40px;height:40px;border-radius:50%;background:rgba(30,110,115,.10);flex:none;display:flex;align-items:center;justify-content:center;}
 .phrase .say svg{width:19px;height:19px;stroke:var(--teal);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
@@ -225,9 +239,9 @@ body.offline #offlineDot{display:block;}
   border-radius:15px;box-shadow:var(--shadow);margin-bottom:11px;}
 .wxcard .wxico{font-size:38px;flex:none;}
 .wxcard .wxmain{flex:1;min-width:0;}
-.wxcard .wxcity{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--teal-d);line-height:1;}
+.wxcard .wxcity{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:20px;font-weight:700;color:var(--teal-d);line-height:1;}
 .wxcard .wxnow{font-size:12.5px;color:var(--muted);margin-top:3px;}
-.wxcard .wxtemp{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:700;color:var(--terra);line-height:1;}
+.wxcard .wxtemp{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:34px;font-weight:700;color:var(--terra);line-height:1;}
 .wxdays{display:flex;gap:7px;margin-top:10px;}
 .wxday{flex:1;text-align:center;font-size:11px;color:var(--muted);background:rgba(246,241,231,.5);border-radius:9px;padding:6px 2px;}
 .wxday .d{font-weight:700;color:var(--ink);}
@@ -295,14 +309,14 @@ body.offline #offlineDot{display:block;}
 .spin{display:inline-block;width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-4px;margin-right:8px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 .leaflet-popup-content{font-family:'Inter',sans-serif;}
-.leaflet-popup-content b{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--teal-d);}
+.leaflet-popup-content b{font-family:'Fraunces','Cormorant Garamond',Georgia,serif;font-size:16px;color:var(--teal-d);}
 </style>
 </head>
 <body>
 <div id="app">
   <header id="topbar">
     <div class="brand">
-      <svg class="star" viewBox="0 0 24 24" fill="#D99A4E"><path d="M12 1.5l2.2 7.1 7.3.2-5.9 4.3 2.2 7-5.8-4.3-5.8 4.3 2.2-7-5.9-4.3 7.3-.2z"/></svg>
+      <svg class="star" viewBox="0 0 24 24" fill="#F6CB6E"><path d="M12 1.5l2.2 7.1 7.3.2-5.9 4.3 2.2 7-5.8-4.3-5.8 4.3 2.2-7-5.9-4.3 7.3-.2z"/></svg>
       <span class="title">Baltic Voyage</span>
     </div>
     <span id="countChip">—</span>
@@ -357,30 +371,69 @@ const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const uid = ()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* ---- Icon system (hand-cut SVG line icons replace emoji) ---- */
+const ICONS = {
+  bed:`<path d="M2.5 17.5h19"/><path d="M3 17.5v-5h18v5"/><path d="M5 12.5V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4.5"/><path d="M3 17.5v3M21 17.5v3"/>`,
+  pin:`<path d="M12 21s-6.5-6-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.4"/>`,
+  pencil:`<path d="M4 20h4L19.4 8.6a1.8 1.8 0 0 0 0-2.5l-1.5-1.5a1.8 1.8 0 0 0-2.5 0L4 16z"/><path d="M14.5 6.5l3 3"/>`,
+  download:`<path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/>`,
+  upload:`<path d="M12 21V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/>`,
+  link:`<path d="M9.4 14.6l5.2-5.2"/><path d="M8.2 12 6 14.2a3 3 0 0 0 4.2 4.2l2.2-2.2"/><path d="M15.8 12 18 9.8a3 3 0 0 0-4.2-4.2l-2.2 2.2"/>`,
+  users:`<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 6"/><path d="M17 13.8a5.5 5.5 0 0 1 3.5 5.2"/>`,
+  check:`<path d="M5 12.5l4.5 4.5L19 7"/>`,
+  map:`<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>`,
+  bag:`<path d="M7 9a5 5 0 0 1 10 0v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0"/><path d="M9 14h6"/>`,
+  trash:`<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6.5 7l1 12.5a1 1 0 0 0 1 .9h7a1 1 0 0 0 1-.9L17.5 7"/>`,
+  sight:`<path d="M4 9.5l8-5 8 5"/><path d="M5.5 9.5V18M9.5 9.5V18M14.5 9.5V18M18.5 9.5V18"/><path d="M3.5 18.5h17M3.5 21h17"/>`,
+  food:`<path d="M6 3v6.5M4 3v3.5a2 2 0 0 0 4 0V3M6 9.5V21"/><path d="M16.5 3c-1.5 .8-2.3 2.7-2.3 5 0 1.8 1 2.6 1.8 2.8V21"/>`,
+  drink:`<path d="M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"/><path d="M16 9.5h2.2a2.3 2.3 0 0 1 0 4.6H16"/><path d="M8 3.5v2M11 3.5v2"/>`,
+  shop:`<path d="M6 8h12l-1 11a1 1 0 0 1-1 .9H8a1 1 0 0 1-1-.9z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>`,
+  nature:`<path d="M12 3l4 6h-2.4l3 5h-3l2.6 4H5.8l2.6-4h-3l3-5H8z"/><path d="M12 18v3"/>`,
+  transport:`<path d="M7 4h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M5 10h14"/><path d="M9 16l-2 4M15 16l2 4"/>`,
+  activity:`<path d="M4 8.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2 2 2 0 0 0 0-4z"/><path d="M14.5 6.8v10.4"/>`,
+  rest:`<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>`,
+  dot:`<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2"/>`,
+};
+function ic(name,cls){const p=ICONS[name];return p?`<svg class="ic${cls?' '+cls:''}" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`:'';}
+function icAt(name,size,color){const p=ICONS[name]||'';return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;}
+
+/* ---- Baltic SVG flags ---- */
+const FLAGS = {
+  fi:`<rect width="20" height="14" fill="#fff"/><rect x="5.5" width="3" height="14" fill="#0050A0"/><rect y="5.5" width="20" height="3" fill="#0050A0"/>`,
+  ee:`<rect width="20" height="14" fill="#fff"/><rect width="20" height="4.67" fill="#0072CE"/><rect y="4.67" width="20" height="4.66" fill="#101010"/>`,
+  lv:`<rect width="20" height="14" fill="#9D2235"/><rect y="5.6" width="20" height="2.8" fill="#fff"/>`,
+  lt:`<rect width="20" height="4.67" fill="#FDB913"/><rect y="4.67" width="20" height="4.66" fill="#006A44"/><rect y="9.33" width="20" height="4.67" fill="#C1272D"/>`,
+};
+function flag(cc){const f=FLAGS[cc];return f?`<svg class="flg" viewBox="0 0 20 14" preserveAspectRatio="none" aria-hidden="true">${f}</svg>`:'';}
+
+/* ---- Baltic folk sun (Saulė) + old-town skyline for the hero ---- */
+const FOLKSUN_SVG = `<svg class="folksun" viewBox="0 0 64 64" aria-hidden="true"><g stroke="#F6CB6E" stroke-width="2.4" stroke-linecap="round"><line x1="50" y1="32" x2="60" y2="32"/><line x1="47.6" y1="41" x2="56.2" y2="46"/><line x1="41" y1="47.6" x2="46" y2="56.2"/><line x1="32" y1="50" x2="32" y2="60"/><line x1="23" y1="47.6" x2="18" y2="56.2"/><line x1="16.4" y1="41" x2="7.8" y2="46"/><line x1="14" y1="32" x2="4" y2="32"/><line x1="16.4" y1="23" x2="7.8" y2="18"/><line x1="23" y1="16.4" x2="18" y2="7.8"/><line x1="32" y1="14" x2="32" y2="4"/><line x1="41" y1="16.4" x2="46" y2="7.8"/><line x1="47.6" y1="23" x2="56.2" y2="18"/></g><circle cx="32" cy="32" r="13" fill="#E0A23E" stroke="#F6CB6E" stroke-width="2"/></svg>`;
+const SKYLINE_SVG = `<svg class="skyline" viewBox="0 0 520 60" preserveAspectRatio="none" aria-hidden="true"><path fill="#06211E" d="M0 60 V42 H22 L30 30 L38 42 H56 V46 L64 34 L72 46 H84 V26 L90 8 L96 26 V46 H112 V40 L120 28 L128 40 V46 H150 V42 A12 12 0 0 0 174 42 V46 H190 L198 32 L206 46 H224 V44 H230 V22 L235 6 L240 22 V46 H256 V40 L264 30 L272 40 V46 H292 L300 32 L308 44 V46 H326 V38 H344 L352 34 L360 46 H378 V28 L386 14 L394 28 V46 H412 L420 32 L428 42 V46 H448 L456 34 L464 46 H482 V40 H500 L508 34 L516 44 V46 H520 V60 Z"/><g fill="#F0B860"><rect x="88" y="30" width="2.4" height="3.2"/><rect x="233" y="28" width="2.4" height="3.2"/><rect x="384" y="34" width="2.4" height="3.2"/><rect x="118" y="36" width="2.2" height="2.8"/><rect x="262" y="36" width="2.2" height="2.8"/><rect x="350" y="40" width="2.2" height="2.8"/><rect x="506" y="40" width="2.2" height="2.8"/></g></svg>`;
+
 /* ---- Static reference data ---- */
 const CITIES = [
-  {id:'helsinki',name:'Helsinki',country:'Finland', flag:'🇫🇮',lat:60.1699,lng:24.9384,lang:'fi'},
-  {id:'tallinn', name:'Tallinn', country:'Estonia', flag:'🇪🇪',lat:59.4370,lng:24.7536,lang:'et'},
-  {id:'riga',    name:'Riga',    country:'Latvia',  flag:'🇱🇻',lat:56.9496,lng:24.1052,lang:'lv'},
-  {id:'vilnius', name:'Vilnius', country:'Lithuania',flag:'🇱🇹',lat:54.6872,lng:25.2797,lang:'lt'},
+  {id:'helsinki',name:'Helsinki',country:'Finland', cc:'fi',flag:flag('fi'),lat:60.1699,lng:24.9384,lang:'fi'},
+  {id:'tallinn', name:'Tallinn', country:'Estonia', cc:'ee',flag:flag('ee'),lat:59.4370,lng:24.7536,lang:'et'},
+  {id:'riga',    name:'Riga',    country:'Latvia',  cc:'lv',flag:flag('lv'),lat:56.9496,lng:24.1052,lang:'lv'},
+  {id:'vilnius', name:'Vilnius', country:'Lithuania',cc:'lt',flag:flag('lt'),lat:54.6872,lng:25.2797,lang:'lt'},
 ];
 const cityById = id => CITIES.find(c=>c.id===id) || CITIES[0];
 
 const PLACE_CATS = {
-  Sight:  {emoji:'🏛️', color:'#1E6E73'},
-  Food:   {emoji:'🍽️', color:'#C25B3A'},
-  Drink:  {emoji:'☕', color:'#B5793A'},
-  Shop:   {emoji:'🛍️', color:'#7A5BA5'},
-  Nature: {emoji:'🌲', color:'#3E8E62'},
-  Other:  {emoji:'📍', color:'#6E7B78'},
+  Sight:  {icon:'sight', color:'#1C6B61'},
+  Food:   {icon:'food',  color:'#BC5638'},
+  Drink:  {icon:'drink', color:'#A8702A'},
+  Shop:   {icon:'shop',  color:'#7A5BA5'},
+  Nature: {icon:'nature',color:'#3E8E62'},
+  Other:  {icon:'dot',   color:'#7E7058'},
 };
 const PLAN_TYPES = {
-  Sight:{emoji:'🏛️'}, Food:{emoji:'🍽️'}, Transport:{emoji:'🚆'},
-  Activity:{emoji:'🎟️'}, Rest:{emoji:'🛌'}, Other:{emoji:'•'}
+  Sight:{icon:'sight'}, Food:{icon:'food'}, Transport:{icon:'transport'},
+  Activity:{icon:'activity'}, Rest:{icon:'rest'}, Other:{icon:'dot'}
 };
 
 const PHRASES = {
-  fi:{name:'Finnish',flag:'🇫🇮',city:'Helsinki',list:[
+  fi:{name:'Finnish',flag:flag('fi'),city:'Helsinki',list:[
     ['Hello','Hei','hay'],['Thank you','Kiitos','KEE-tos'],['Please / Here you go','Ole hyvä','OH-leh HOO-va'],
     ['Yes','Kyllä','KOOL-la'],['No','Ei','ay'],['Excuse me','Anteeksi','AN-tehk-si'],
     ['Goodbye','Näkemiin','NA-keh-meen'],['Cheers!','Kippis','KIP-pis'],
@@ -388,7 +441,7 @@ const PHRASES = {
     ['The bill, please','Lasku, kiitos','LAS-ku KEE-tos'],["I don't understand",'En ymmärrä','en OOM-mar-ra'],
     ['Help!','Apua!','AH-poo-ah'],
   ]},
-  et:{name:'Estonian',flag:'🇪🇪',city:'Tallinn',list:[
+  et:{name:'Estonian',flag:flag('ee'),city:'Tallinn',list:[
     ['Hello','Tere','TEH-reh'],['Thank you','Aitäh','AI-tah'],['Please / You\'re welcome','Palun','PAH-lun'],
     ['Yes','Jah','yah'],['No','Ei','ay'],['Excuse me','Vabandust','VAH-ban-dust'],
     ['Goodbye','Nägemist','NA-geh-mist'],['Cheers!','Terviseks','TEHR-vi-seks'],
@@ -396,7 +449,7 @@ const PHRASES = {
     ['The bill, please','Arve, palun','AR-veh PAH-lun'],["I don't understand",'Ma ei saa aru','ma ay saa AH-ru'],
     ['Help!','Appi!','AP-pi'],
   ]},
-  lv:{name:'Latvian',flag:'🇱🇻',city:'Riga',list:[
+  lv:{name:'Latvian',flag:flag('lv'),city:'Riga',list:[
     ['Hello','Sveiki','SVAY-ki'],['Thank you','Paldies','PAHL-dyes'],['Please / You\'re welcome','Lūdzu','LOO-dzu'],
     ['Yes','Jā','yah'],['No','Nē','neh'],['Excuse me','Atvainojiet','AT-vai-no-yet'],
     ['Goodbye','Uz redzēšanos','uz REH-dze-sha-nos'],['Cheers!','Priekā','pree-EH-kah'],
@@ -404,7 +457,7 @@ const PHRASES = {
     ['The bill, please','Rēķinu, lūdzu','REH-ki-nu LOO-dzu'],["I don't understand",'Es nesaprotu','es neh-SAP-ro-tu'],
     ['Help!','Palīgā!','PAH-lee-gah'],
   ]},
-  lt:{name:'Lithuanian',flag:'🇱🇹',city:'Vilnius',list:[
+  lt:{name:'Lithuanian',flag:flag('lt'),city:'Vilnius',list:[
     ['Hello','Labas','LAH-bas'],['Thank you','Ačiū','AH-choo'],['Please / You\'re welcome','Prašau','prah-SHOW'],
     ['Yes','Taip','tighp'],['No','Ne','neh'],['Excuse me','Atsiprašau','at-si-prah-SHOW'],
     ['Goodbye','Viso gero','VI-so GEH-ro'],['Cheers!','Į sveikatą','ee svay-KAH-tah'],
@@ -544,8 +597,8 @@ function renderTrip(){
       <div class="ci-main">
         <div class="ci-name">${c.name}</div>
         <div class="ci-sub"><span>${c.country}</span>
-          ${stays?`<span class="chip">🏨 ${stays}</span>`:''}
-          ${spots?`<span class="chip amber">📍 ${spots}</span>`:''}
+          ${stays?`<span class="chip">${ic('bed')} ${stays}</span>`:''}
+          ${spots?`<span class="chip amber">${ic('pin')} ${spots}</span>`:''}
         </div>
       </div>
       <div class="flag">${c.flag}</div>
@@ -554,14 +607,13 @@ function renderTrip(){
 
   $('#trip').innerHTML=`
     <div class="hero">
-      <div class="sun"></div>
+      ${FOLKSUN_SVG}
       <div class="eyebrow">Summer ${new Date().getFullYear()} · The Baltic Way</div>
       <h1>Baltic Voyage</h1>
       <div class="route">Helsinki <span class="arr">→</span> Tallinn <span class="arr">→</span> Riga <span class="arr">→</span> Vilnius</div>
       ${cd}
-      <svg class="wave" viewBox="0 0 500 40" preserveAspectRatio="none" height="34">
-        <path d="M0 22 C 80 8, 140 36, 230 22 S 400 8, 500 22 L500 40 L0 40 Z" fill="#F6F1E7"/>
-      </svg>
+      ${SKYLINE_SVG}
+      <div class="heroband"></div>
     </div>
     <div class="wrap">
       <div class="quickrow">
@@ -571,7 +623,7 @@ function renderTrip(){
       </div>
       <div class="minihead" style="display:flex;align-items:center;justify-content:space-between;">
         <span>Your Journey</span>
-        <button class="btn ghost sm" onclick="openTripForm()">✎ Dates</button>
+        <button class="btn ghost sm" onclick="openTripForm()">${ic('pencil')} Dates</button>
       </div>
       <div style="font-size:12.5px;color:var(--muted);margin:-6px 2px 12px;">${esc(datesLine)}</div>
       ${cityCards}
@@ -582,13 +634,13 @@ function renderTrip(){
         Everything stays on this device. Save a backup file you can restore on a new phone or after clearing your browser.
       </div>
       <div style="display:flex;gap:10px;">
-        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="exportData()">⬇ Export</button>
-        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="document.getElementById('importFile').click()">⬆ Import</button>
+        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="exportData()">${ic('download')} Export</button>
+        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="document.getElementById('importFile').click()">${ic('upload')} Import</button>
         <input id="importFile" type="file" accept="application/json,.json" style="display:none;" onchange="importData(this)">
       </div>
       <div class="divider"></div>
-      <div style="text-align:center;color:var(--muted);font-size:12px;padding:4px 0 8px;">
-        ✦ A keepsake for the road ✦<br>All your details stay on this device.
+      <div style="text-align:center;color:var(--muted);font-size:12px;letter-spacing:.3px;padding:4px 0 8px;">
+        Hyvää matkaa · Head reisi · Labu ceļu · Geros kelionės
       </div>
     </div>`;
 }
@@ -829,7 +881,7 @@ function openItineraryReview(plans){
     const d=p.date?fmtDate(p.date,{day:'numeric',month:'short'}):'No date';
     return `<label class="imp-row"><input type="checkbox" checked data-i="${i}">
       <span class="imp-when">${esc(p.time||'—')}</span>
-      <span class="imp-main"><span class="imp-t">${t.emoji} ${esc(p.title)}</span>
+      <span class="imp-main"><span class="imp-t">${ic(t.icon)} ${esc(p.title)}</span>
       <span class="imp-m">${d} · ${c.flag} ${esc(c.name)}</span></span></label>`;
   }).join('');
   $('#sheetBody').innerHTML=`<p class="imp-hint">Found these plans. Untick any you don't want, then add them to your Days. You can edit each one afterwards.</p>
@@ -853,7 +905,7 @@ function renderDays(){
   const items=[...S.itinerary].sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.time||'').localeCompare(b.time||''));
   let body;
   if(!items.length){
-    body=`<div class="empty"><span class="em-ico">🗺️</span>
+    body=`<div class="empty"><span class="em-ico">${ic('map')}</span>
       <p>No plans yet. Build your day-by-day itinerary as the trip takes shape.</p>
       <button class="btn" onclick="openForm('itinerary')">+ Add a plan</button></div>`;
   } else {
@@ -873,7 +925,7 @@ function renderDays(){
     <div class="sec-head"><div><div class="eyebrow">Itinerary</div><h2>Days</h2>
       <div class="sub">${items.length} plan${items.length!==1?'s':''} across your trip</div></div>
       <div style="display:flex;gap:8px;flex:none;">
-        <button class="btn ghost sm" onclick="document.getElementById('itinPdf').click()">⬆ PDF</button>
+        <button class="btn ghost sm" onclick="document.getElementById('itinPdf').click()">${ic('upload')} PDF</button>
         <button class="btn sm" onclick="openForm('itinerary')">+ Plan</button>
       </div>
       <input id="itinPdf" type="file" accept="application/pdf,.pdf" style="display:none;" onchange="importItineraryPDF(this)"></div>
@@ -883,16 +935,16 @@ function renderPlanCard(it){
   const c=cityById(it.city); const t=PLAN_TYPES[it.type]||PLAN_TYPES.Other;
   return `<div class="item">
     <div class="ihead">
-      <div class="ico">${t.emoji}</div>
+      <div class="ico">${ic(t.icon)}</div>
       <div class="ititle"><div class="t">${esc(it.title||'Untitled')}</div>
         <div class="m">${c.flag} ${esc(c.name)}${it.location?' · '+esc(it.location):''}</div></div>
       ${it.time?`<span class="tl-time">${esc(it.time)}</span>`:''}
     </div>
     ${it.notes?`<div class="ibody"><div class="kv"><span class="v">${esc(it.notes)}</span></div></div>`:''}
     <div class="iact">
-      <button onclick="openForm('itinerary','${it.id}')">✎ Edit</button>
-      ${it.location?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.location+' '+c.name)}" target="_blank" rel="noopener">↗ Map</a>`:''}
-      <button class="del" onclick="del('itinerary','${it.id}')">🗑 Delete</button>
+      <button onclick="openForm('itinerary','${it.id}')">${ic('pencil')} Edit</button>
+      ${it.location?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.location+' '+c.name)}" target="_blank" rel="noopener">${ic('map')} Map</a>`:''}
+      <button class="del" onclick="del('itinerary','${it.id}')">${ic('trash')} Delete</button>
     </div>
   </div>`;
 }
@@ -902,7 +954,7 @@ function renderHotels(){
   const items=[...S.hotels].sort((a,b)=>(a.checkIn||'').localeCompare(b.checkIn||''));
   let body;
   if(!items.length){
-    body=`<div class="empty"><span class="em-ico">🏨</span>
+    body=`<div class="empty"><span class="em-ico">${ic('bed')}</span>
       <p>Add your stays here — check-in, check-out, confirmation numbers, and everything you'll need at the front desk.</p>
       <button class="btn" onclick="openForm('hotel')">+ Add a hotel</button></div>`;
   } else {
@@ -911,7 +963,7 @@ function renderHotels(){
       const nights = (h.checkIn&&h.checkOut)? Math.max(0,Math.round((new Date(h.checkOut)-new Date(h.checkIn))/864e5)) : null;
       return `<div class="item">
         <div class="ihead">
-          <div class="ico">🏨</div>
+          <div class="ico">${ic('bed')}</div>
           <div class="ititle"><div class="t">${esc(h.name||'Hotel')}</div>
             <div class="m">${c.flag} ${esc(c.name)}${nights!=null?` · ${nights} night${nights!==1?'s':''}`:''}</div></div>
         </div>
@@ -925,10 +977,10 @@ function renderHotels(){
           ${h.notes?kv('Notes',esc(h.notes)):''}
         </div>
         <div class="iact">
-          <button onclick="openForm('hotel','${h.id}')">✎ Edit</button>
-          ${h.address?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.address)}" target="_blank" rel="noopener">↗ Directions</a>`:''}
+          <button onclick="openForm('hotel','${h.id}')">${ic('pencil')} Edit</button>
+          ${h.address?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.address)}" target="_blank" rel="noopener">${ic('pin')} Directions</a>`:''}
           ${h.phone?`<a href="tel:${esc(h.phone)}">☎ Call</a>`:''}
-          <button class="del" onclick="del('hotel','${h.id}')">🗑 Delete</button>
+          <button class="del" onclick="del('hotel','${h.id}')">${ic('trash')} Delete</button>
         </div>
       </div>`;
     }).join('');
@@ -937,7 +989,7 @@ function renderHotels(){
     <div class="sec-head"><div><div class="eyebrow">Where you'll rest</div><h2>Hotels</h2>
       <div class="sub">${items.length} stay${items.length!==1?'s':''} saved</div></div>
       <div style="display:flex;gap:8px;flex:none;">
-        <button class="btn ghost sm" onclick="document.getElementById('pdfFile').click()">⬆ PDF</button>
+        <button class="btn ghost sm" onclick="document.getElementById('pdfFile').click()">${ic('upload')} PDF</button>
         <button class="btn sm" onclick="openForm('hotel')">+ Hotel</button>
       </div>
       <input id="pdfFile" type="file" accept="application/pdf,.pdf" style="display:none;" onchange="importPDF(this)"></div>
@@ -956,7 +1008,7 @@ function renderPlaces(){
   const filtered=S.places.filter(p=>placeFilter==='all'||p.city===placeFilter);
   let list;
   if(!filtered.length){
-    list=`<div class="empty"><span class="em-ico">📍</span><p>No places here yet — tap the map or add one.</p>
+    list=`<div class="empty"><span class="em-ico">${ic('pin')}</span><p>No places here yet — tap the map or add one.</p>
       <button class="btn" onclick="openForm('place')">+ Add a place</button></div>`;
   } else {
     list=filtered.map(p=>{
@@ -964,13 +1016,13 @@ function renderPlaces(){
       const q=(p.lat&&p.lng)?`${p.lat},${p.lng}`:encodeURIComponent(p.name+' '+c.name);
       return `<div class="place ${p.visited?'visited':''}">
         <span class="pdot" style="background:${cat.color}"></span>
-        <div class="pmain"><div class="pn">${cat.emoji} ${esc(p.name)}</div>
+        <div class="pmain"><div class="pn"><span class="catic" style="color:${cat.color}">${ic(cat.icon)}</span> ${esc(p.name)}</div>
           <div class="pm">${c.flag} ${esc(p.category)}${p.notes?' · '+esc(p.notes):''}</div></div>
         <div class="pacts">
-          <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">↗ Go</a>
+          <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${ic('pin')} Go</a>
           <button onclick="toggleVisited('${p.id}')">${p.visited?'↺ Undo':'✓ Seen'}</button>
-          <button onclick="openForm('place','${p.id}')">✎</button>
-          <button onclick="del('place','${p.id}')" style="color:var(--terra)">🗑</button>
+          <button onclick="openForm('place','${p.id}')">${ic('pencil')}</button>
+          <button onclick="del('place','${p.id}')" style="color:var(--terra)">${ic('trash')}</button>
         </div>
       </div>`;
     }).join('');
@@ -980,7 +1032,7 @@ function renderPlaces(){
       <div class="sub">Tap the map to drop a pin</div></div>
       <button class="btn sm" onclick="openForm('place')">+ Place</button></div>
     <div id="map"></div>
-    <div id="mapFallback" class="empty" style="margin-top:0;"><span class="em-ico">🗺️</span>
+    <div id="mapFallback" class="empty" style="margin-top:0;"><span class="em-ico">${ic('map')}</span>
       <p>Map needs an internet connection. Your saved places are listed below and open in your phone's maps app.</p></div>
     ${myMapCard()}
     <div class="filterbar">${pills}</div>
@@ -1004,12 +1056,12 @@ function embedMapSrc(input){
 }
 function myMapCard(){
   const url=(S.meta&&S.meta.myMapUrl)||''; if(!url) return '';
-  const note=t=>`<div class="mymap-card"><div class="mymap-head">🗺️ My Google Map</div><div class="hint" style="padding:2px;">${t}</div></div>`;
+  const note=t=>`<div class="mymap-card"><div class="mymap-head">${ic('map')} My Google Map</div><div class="hint" style="padding:2px;">${t}</div></div>`;
   const src=embedMapSrc(url);
   if(src===false) return note('That looks like a short link. Open it, then copy the full link — or in Google My Maps use “Embed on my site”.');
   if(!src) return note('Couldn’t read that map link. In Google My Maps use “Embed on my site”, or paste a link containing <code>mid=</code>.');
   if(!navigator.onLine) return note('Your map needs an internet connection to load.');
-  return `<div class="mymap-card"><div class="mymap-head">🗺️ My Google Map</div>
+  return `<div class="mymap-card"><div class="mymap-head">${ic('map')} My Google Map</div>
     <div class="mymap-frame"><iframe src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe></div></div>`;
 }
 function setFilter(id){placeFilter=id;renderPlaces();}
@@ -1036,9 +1088,9 @@ function drawMarkers(){
   const bounds=[];
   pts.forEach(p=>{
     const cat=PLACE_CATS[p.category]||PLACE_CATS.Other; const c=cityById(p.city);
-    const icon=L.divIcon({className:'',html:`<div style="background:${cat.color};width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:12px;">${cat.emoji}</span></div>`,iconSize:[26,26],iconAnchor:[13,24],popupAnchor:[0,-22]});
+    const icon=L.divIcon({className:'',html:`<div style="background:${cat.color};width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);display:flex;">${icAt(cat.icon,13,'#fff')}</span></div>`,iconSize:[26,26],iconAnchor:[13,24],popupAnchor:[0,-22]});
     const m=L.marker([p.lat,p.lng],{icon}).addTo(markerLayer);
-    m.bindPopup(`<b>${esc(p.name)}</b><br>${c.flag} ${esc(p.category)}${p.notes?'<br>'+esc(p.notes):''}<br><a href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}" target="_blank" rel="noopener">Open in Maps ↗</a>`);
+    m.bindPopup(`<b>${esc(p.name)}</b><br>${c.flag} ${esc(p.category)}${p.notes?'<br>'+esc(p.notes):''}<br><a href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}" target="_blank" rel="noopener">Open in Maps</a>`);
     bounds.push([p.lat,p.lng]);
   });
   if(bounds.length){ try{map.fitBounds(bounds,{padding:[40,40],maxZoom:13});}catch(e){} }
@@ -1080,7 +1132,7 @@ function renderPacking(){
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:var(--teal-d);margin-bottom:4px;">
       <span>${done} of ${total} packed</span><span>${pct}%</span></div>
     <div class="pkbar"><i style="width:${pct}%"></i></div>
-    ${total?groups:'<div class="empty"><span class="em-ico">🎒</span><p>Your packing list is empty.</p></div>'}
+    ${total?groups:`<div class="empty"><span class="em-ico">${ic('bag')}</span><p>Your packing list is empty.</p></div>`}
     <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px;" onclick="openForm('packing')">+ Add item</button>`;
 }
 function togglePack(id){const p=S.packing.find(x=>x.id===id);if(p){p.done=!p.done;save();renderPacking();}}
@@ -1186,7 +1238,7 @@ function fetchRates(manual){
 
 /* ====================== FORMS (add / edit) ====================== */
 const FORMS={
-  hotel:{title:'Hotel', icon:'🏨', fields:[
+  hotel:{title:'Hotel', icon:'bed', fields:[
     {k:'name',l:'Hotel name',req:true,ph:'e.g. Hotel St. Petersbourg'},
     {k:'city',l:'City',type:'city'},
     {k:'checkIn',l:'Check-in',type:'date',half:1},
@@ -1199,7 +1251,7 @@ const FORMS={
     {k:'price',l:'Price',ph:'e.g. €420 total',half:1},
     {k:'notes',l:'Notes',type:'textarea',ph:'Breakfast included, parking, etc.'},
   ]},
-  itinerary:{title:'Plan', icon:'🗺️', fields:[
+  itinerary:{title:'Plan', icon:'map', fields:[
     {k:'title',l:'What',req:true,ph:'e.g. Old Town walking tour'},
     {k:'date',l:'Date',type:'date',half:1},
     {k:'time',l:'Time',type:'time',half:1},
@@ -1208,7 +1260,7 @@ const FORMS={
     {k:'location',l:'Location / meeting point',ph:'Address or place name'},
     {k:'notes',l:'Notes',type:'textarea'},
   ]},
-  place:{title:'Place', icon:'📍', fields:[
+  place:{title:'Place', icon:'pin', fields:[
     {k:'name',l:'Place name',req:true,ph:'e.g. Riga Central Market'},
     {k:'city',l:'City',type:'city'},
     {k:'category',l:'Category',type:'select',opts:Object.keys(PLACE_CATS)},
@@ -1216,7 +1268,7 @@ const FORMS={
     {k:'lng',l:'Longitude',type:'number',half:1,ph:'auto from map'},
     {k:'notes',l:'Notes',type:'textarea',ph:'Why you want to go'},
   ]},
-  packing:{title:'Packing item', icon:'🎒', fields:[
+  packing:{title:'Packing item', icon:'bag', fields:[
     {k:'text',l:'Item',req:true,ph:'e.g. Rain jacket'},
     {k:'cat',l:'Category',type:'select',opts:['Essentials','Clothing','Health','Extras']},
   ]},
@@ -1409,7 +1461,7 @@ function syncCard(){
       <div class="sync-row"><span class="sync-dot"></span><span><b>Synced live.</b> Anyone with this link sees the same trip:</span></div>
       <div class="sync-code">${esc(shareLink())}</div>
       <div style="display:flex;gap:10px;">
-        <button class="btn" style="flex:1;justify-content:center;" onclick="copyShareLink()">🔗 Copy link</button>
+        <button class="btn" style="flex:1;justify-content:center;" onclick="copyShareLink()">${ic('link')} Copy link</button>
         <button class="btn ghost" style="flex:1;justify-content:center;" onclick="stopSync()">Stop syncing</button>
       </div>`;
   }
@@ -1417,7 +1469,7 @@ function syncCard(){
   return `<div class="divider"></div><div class="minihead">Share across devices</div>
     <div style="font-size:12px;color:var(--muted);margin:-6px 2px 12px;">Create a shared trip and send the link to your partner — you’ll both see live updates. (Saves the trip to your Firebase cloud.)</div>
     <div style="display:flex;gap:10px;">
-      <button class="btn" style="flex:1;justify-content:center;" onclick="createSharedTrip()">👥 Create shared trip</button>
+      <button class="btn" style="flex:1;justify-content:center;" onclick="createSharedTrip()">${ic('users')} Create shared trip</button>
       <button class="btn ghost" style="flex:1;justify-content:center;" onclick="promptJoinTrip()">Join with link</button>
     </div>`;
 }
