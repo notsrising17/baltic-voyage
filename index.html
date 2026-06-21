@@ -271,6 +271,9 @@ body.offline #offlineDot{display:block;}
 .mymap-head{font-weight:700;font-size:13px;color:var(--teal-d);margin-bottom:6px;}
 .mymap-frame{position:relative;width:100%;height:300px;border-radius:14px;overflow:hidden;border:1.5px solid var(--line);}
 .mymap-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+.sync-row{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink);margin:0 2px 9px;line-height:1.4;}
+.sync-dot{flex:none;width:9px;height:9px;border-radius:50%;background:#36b37e;margin-top:4px;box-shadow:0 0 0 3px rgba(54,179,126,.18);}
+.sync-code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;word-break:break-all;background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;margin:0 0 11px;color:var(--teal-d);}
 .field{margin-bottom:13px;}
 .field label{display:block;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--teal-d);margin-bottom:5px;}
 .field input,.field select,.field textarea{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:11px;
@@ -456,6 +459,7 @@ const SEED_PACKING = [
 /* ---- State ---- */
 const KEY='balticVoyage.v1';
 let S = load();
+let syncState={on:false,applying:false,tripId:null,ref:null,lastJson:'',timer:null};
 function load(){
   try{
     const raw=localStorage.getItem(KEY);
@@ -467,7 +471,10 @@ function load(){
     rates:null, seeded:true
   };
 }
-function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Could not save — storage full');} }
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Could not save — storage full');}
+  if(syncState.on && !syncState.applying) schedulePush();
+}
 
 /* ---- UI helpers ---- */
 let toastTimer;
@@ -568,6 +575,7 @@ function renderTrip(){
       </div>
       <div style="font-size:12.5px;color:var(--muted);margin:-6px 2px 12px;">${esc(datesLine)}</div>
       ${cityCards}
+      ${syncCard()}
       <div class="divider"></div>
       <div class="minihead">Backup</div>
       <div style="font-size:12px;color:var(--muted);margin:-6px 2px 12px;">
@@ -1288,11 +1296,139 @@ window.addEventListener('online',()=>{netStatus();if(toolPanel==='weather'&&acti
 window.addEventListener('offline',netStatus);
 netStatus();
 
+/* ====================== CLOUD SYNC (shared trip) ====================== */
+// Paste your Firebase web config below to enable cross-device sync.
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+function syncConfigured(){ return !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL); }
+
+const FB_VER='10.12.2';
+let fbPromise=null;
+function loadFirebase(){
+  if(window.firebase && window.firebase.database) return Promise.resolve(window.firebase);
+  if(fbPromise) return fbPromise;
+  const add=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('firebase load failed'));document.head.appendChild(s);});
+  fbPromise=add(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-app-compat.js`)
+    .then(()=>add(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-database-compat.js`))
+    .then(()=>{ if(!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG); return window.firebase; })
+    .catch(e=>{ fbPromise=null; throw e; });
+  return fbPromise;
+}
+function syncSnapshot(){ return {meta:S.meta,hotels:S.hotels,itinerary:S.itinerary,places:S.places,packing:S.packing,_v:Date.now()}; }
+function stripV(o){ const c=Object.assign({},o); delete c._v; return c; }
+function applyRemote(data){
+  if(!data) return;
+  syncState.applying=true;
+  S.meta=data.meta||S.meta;
+  S.hotels=data.hotels||[]; S.itinerary=data.itinerary||[];
+  S.places=data.places||[]; S.packing=data.packing||[];
+  save();                       // persist locally; applying flag prevents a re-push
+  syncState.applying=false;
+  render(activeTab);
+}
+function schedulePush(){
+  clearTimeout(syncState.timer);
+  syncState.timer=setTimeout(()=>{
+    if(!syncState.ref) return;
+    const snap=syncSnapshot();
+    syncState.lastJson=JSON.stringify(stripV(snap));
+    Promise.resolve(syncState.ref.set(snap)).catch(()=>toast('Sync: could not reach the cloud'));
+  },600);
+}
+function startSync(tripId){
+  return loadFirebase().then(fb=>{
+    syncState.tripId=tripId;
+    syncState.ref=fb.database().ref('trips/'+tripId);
+    syncState.on=true;
+    let first=true;
+    syncState.ref.on('value',snap=>{
+      const data=snap.val();
+      if(first){
+        first=false;
+        if(!data){ schedulePush(); if(activeTab==='trip')renderTrip(); return; } // new trip: seed it with our data
+      }
+      if(!data) return;
+      const incoming=JSON.stringify(stripV(data));
+      if(incoming===syncState.lastJson) return;   // echo of our own write — ignore
+      syncState.lastJson=incoming;
+      applyRemote(data);
+    },()=>toast('Sync error — check your connection'));
+    if(activeTab==='trip')renderTrip();
+    return true;
+  });
+}
+function newTripId(){
+  const a=new Uint8Array(16); (window.crypto||crypto).getRandomValues(a);
+  return Array.from(a,b=>('0'+b.toString(16)).slice(-2)).join('');
+}
+function createSharedTrip(){
+  if(!syncConfigured()){ toast('Sync isn’t set up on this build yet'); return; }
+  toast('Creating shared trip…');
+  const id=newTripId();
+  startSync(id).then(()=>{ location.hash='trip='+id; toast('Shared trip created ✓'); })
+    .catch(()=>toast('Could not start sync — check your connection'));
+}
+function joinTrip(input){
+  const raw=String(input||'').trim(); if(!raw){ toast('Paste a trip link or code'); return; }
+  const m=raw.match(/trip=([a-f0-9]{8,})/i); const id=m?m[1]:raw.replace(/[^a-f0-9]/gi,'');
+  if(id.length<8){ toast('That doesn’t look like a trip code'); return; }
+  if(!syncConfigured()){ toast('Sync isn’t set up on this build yet'); return; }
+  if(!confirm('Joining will replace this device’s trip with the shared trip. Continue?')) return;
+  toast('Joining shared trip…');
+  startSync(id).then(()=>{ location.hash='trip='+id; toast('Synced ✓'); })
+    .catch(()=>toast('Could not join — check your connection'));
+}
+function promptJoinTrip(){ const v=prompt('Paste the shared trip link or code:'); if(v) joinTrip(v); }
+function stopSync(){
+  if(syncState.ref){ try{syncState.ref.off();}catch(e){} }
+  syncState.on=false; syncState.ref=null; syncState.tripId=null; syncState.lastJson='';
+  if(location.hash) history.replaceState(null,'',location.pathname+location.search);
+  toast('Stopped syncing — your data stays on this device');
+  renderTrip();
+}
+function shareLink(){ return location.origin+location.pathname+'#trip='+syncState.tripId; }
+function copyShareLink(){
+  const link=shareLink();
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(()=>toast('Link copied ✓'),()=>toast(link)); }
+  else toast(link);
+}
+function maybeAutoJoin(){
+  const m=(location.hash||'').match(/trip=([a-f0-9]{8,})/i);
+  if(m && syncConfigured() && !syncState.on){ startSync(m[1]).catch(()=>{}); }
+}
+function syncCard(){
+  if(syncState.on){
+    return `<div class="divider"></div><div class="minihead">Shared trip</div>
+      <div class="sync-row"><span class="sync-dot"></span><span><b>Synced live.</b> Anyone with this link sees the same trip:</span></div>
+      <div class="sync-code">${esc(shareLink())}</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn" style="flex:1;justify-content:center;" onclick="copyShareLink()">🔗 Copy link</button>
+        <button class="btn ghost" style="flex:1;justify-content:center;" onclick="stopSync()">Stop syncing</button>
+      </div>`;
+  }
+  if(!syncConfigured()) return '';   // hidden until a Firebase config is added
+  return `<div class="divider"></div><div class="minihead">Share across devices</div>
+    <div style="font-size:12px;color:var(--muted);margin:-6px 2px 12px;">Create a shared trip and send the link to your partner — you’ll both see live updates. (Saves the trip to your Firebase cloud.)</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" style="flex:1;justify-content:center;" onclick="createSharedTrip()">👥 Create shared trip</button>
+      <button class="btn ghost" style="flex:1;justify-content:center;" onclick="promptJoinTrip()">Join with link</button>
+    </div>`;
+}
+
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,embedMapSrc});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,embedMapSrc,createSharedTrip,joinTrip,promptJoinTrip,stopSync,copyShareLink,startSync,get S(){return S;},syncState});
 
 /* ---- boot ---- */
 go('trip');
+maybeAutoJoin();
+window.addEventListener('hashchange',maybeAutoJoin);
 if('serviceWorker'in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 </script>
 </body>
