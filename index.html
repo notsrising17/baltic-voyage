@@ -1016,8 +1016,10 @@ function parseDayItinerary(text){
 }
 function importItineraryPDF(input){
   readPdf(input,text=>{
-    const dayCount=(text.match(/^DAY\s*\d/gmi)||[]).length;
-    const plans=dayCount>=3?parseDayItinerary(text):parseItinerary(text);
+    // Run both parsers and keep whichever read the itinerary better, rather than
+    // relying on a fragile format sniff that the browser's text extraction can defeat.
+    const dayPlans=parseDayItinerary(text), flatPlans=parseItinerary(text);
+    const plans=(dayPlans.length>=3 && dayPlans.length>=flatPlans.length)?dayPlans:flatPlans;
     if(!plans.length){ toast('No itinerary items found — is it a day-by-day list?'); return; }
     openItineraryReview(plans);
   });
