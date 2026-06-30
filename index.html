@@ -955,9 +955,69 @@ function parseItinerary(text){
   return items;
 }
 let pendingPlans=[];
+// Richly-structured itineraries (DAY headers + "Morning — X:" segments) parse
+// better block-by-block; simple time/bullet lists fall back to parseItinerary.
+const SEG_PERIODS=[['breakfast','08:00'],['late morning','11:00'],['friday evening','19:30'],['friday night','21:00'],['morning','09:00'],['midday','12:00'],['lunch','12:30'],['daytime','10:00'],['afternoon','14:00'],['evening','19:30'],['dinner','19:30'],['night','21:00'],['full day','']];
+// Segment type: prefer Sight/Transport over Food so a sight whose notes merely
+// mention a "market" or "bar" isn't mislabelled. Falls back to guessPlanType.
+function segType(period,title,notes){
+  if(/breakfast|lunch|dinner/.test(period)) return 'Food';
+  const t=(title+' '+notes).toLowerCase();
+  if(/\b(museum|cathedral|church|castle|fortress|fort|tower|square|old town|gallery|monument|palace|manor|district|quarter|neighborh?ood|garden|park|hill|unesco|sightsee|viewpoint|terrace)\b/.test(t)) return 'Sight';
+  if(/\b(train|ferry|flight|fly|bus|coach|transfer|taxi|airport|station|port|departure|arrival|depart|arrive|check[\s-]*out)\b/.test(t)) return 'Transport';
+  if(/\b(restaurant|caf[eé]|coffee|dine|dining|tasting|bistro|wine bar)\b/.test(t)) return 'Food';
+  if(/\b(spa|sauna|pool|beach|cruise|workshop|concert|show|rowboat|funicular|market hall)\b/.test(t)) return 'Activity';
+  return guessPlanType(title);
+}
+function parseSegment(line){
+  const low=line.toLowerCase();
+  let period=null,time='';
+  for(const [w,t] of SEG_PERIODS){ if(low.startsWith(w+' ')||low.startsWith(w+':')){ period=w; time=t; break; } }
+  if(!period) return null;
+  let rest=line.slice(period.length).replace(/^\s+in\s+[A-Za-z]+/i,'').replace(/^\s*[—:\-]\s*/,'').trim();
+  if(rest.length<2) return null;
+  let title, notes=rest;
+  const m=rest.match(/^(.{2,60}?):\s+(\S.*)$/);          // "Title:  notes" — first colon, tolerant of abbreviations
+  if(m){ title=m[1].trim(); notes=m[2].trim(); }
+  else { let t=rest.split(/\s[—–]\s|;\s/)[0].trim(); if(t.length>62) t=t.slice(0,62).replace(/\s+\S*$/,''); title=t; }
+  title=title.replace(/[.;,]+$/,'').trim();
+  return {period,time,title,notes,type:segType(period,title,notes)};
+}
+function parseDayItinerary(text){
+  const raw=String(text||'').replace(/ /g,' ');
+  const lines=raw.split('\n').map(l=>l.trim());
+  const defYear=pdfYear(raw);
+  const dayHdr=/^(?:mon|tues|wednes|thurs|fri|satur|sun)day,\s+([A-Za-z]{3,9})\.?\s+(\d{1,2})\b\s*[—-]?\s*(.*)$/i;
+  const out=[];
+  let curCity=CITIES[0].id, curDate='', dDate='', dTitle='', dCity='', dSegs=0, hadDay=false;
+  const flush=()=>{ if(hadDay && dSegs===0 && dTitle.length>1) out.push({title:dTitle.slice(0,80),date:dDate,time:'',city:dCity,type:guessPlanType(dTitle),notes:''}); };
+  for(const line of lines){
+    const ce=CITIES.find(c=>c.name.toLowerCase()===line.toLowerCase()); if(ce) curCity=ce.id;
+    const dh=dayHdr.exec(line);
+    if(dh){
+      flush();
+      const mo=MONTHS[dh[1].slice(0,3).toLowerCase()], d=+dh[2];
+      dDate=(mo&&d)?isoDate(defYear,mo,d):''; curDate=dDate;
+      dTitle=(dh[3]||'').replace(/\(~?[^)]*\)/g,'').replace(/\s{2,}/g,' ').trim();
+      dCity=curCity; dSegs=0; hadDay=true;
+      continue;
+    }
+    if(!curDate) continue;
+    const seg=parseSegment(line);
+    if(seg){
+      let title=seg.title;
+      if(/^[a-z]/.test(title)||seg.period==='full day') title=dTitle||title;   // weak segment title → use the day's title
+      out.push({title:title.slice(0,80), date:curDate, time:seg.time, city:curCity, type:seg.type, notes:seg.notes.slice(0,300)});
+      dSegs++;
+    }
+  }
+  flush();
+  return out;
+}
 function importItineraryPDF(input){
   readPdf(input,text=>{
-    const plans=parseItinerary(text);
+    const dayCount=(text.match(/^DAY\s*\d/gmi)||[]).length;
+    const plans=dayCount>=3?parseDayItinerary(text):parseItinerary(text);
     if(!plans.length){ toast('No itinerary items found — is it a day-by-day list?'); return; }
     openItineraryReview(plans);
   });
