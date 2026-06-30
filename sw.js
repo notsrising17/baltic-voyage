@@ -1,7 +1,8 @@
 /* Baltic Voyage — service worker
-   App shell is cached for offline use. Live data (weather, FX rates,
-   map tiles) is fetched network-first and simply skipped when offline. */
-const CACHE = 'baltic-voyage-v13';
+   The app shell is cached for offline use. The HTML is fetched network-first so
+   new versions appear immediately when online; other assets stay cache-first.
+   On activation the new worker reloads open windows so updates apply at once. */
+const CACHE = 'baltic-voyage-v14';
 const SHELL = [
   './',
   './index.html',
@@ -20,6 +21,8 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then(cs => cs.forEach(c => { try { c.navigate(c.url); } catch (e) {} }))
   );
 });
 
@@ -34,15 +37,27 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Same-origin shell: cache-first, fall back to network.
   if (url.origin === location.origin) {
-    e.respondWith(
-      caches.match(req).then(hit => hit || fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
-        return res;
-      }).catch(() => caches.match('./index.html')))
-    );
+    const isHTML = req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
+    if (isHTML) {
+      // Network-first for the shell HTML so updates land immediately when online.
+      e.respondWith(
+        fetch(req).then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+          return res;
+        }).catch(() => caches.match(req).then(h => h || caches.match('./index.html')))
+      );
+    } else {
+      // Cache-first for other same-origin assets (icons, manifest).
+      e.respondWith(
+        caches.match(req).then(hit => hit || fetch(req).then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+          return res;
+        }).catch(() => caches.match('./index.html')))
+      );
+    }
     return;
   }
 
