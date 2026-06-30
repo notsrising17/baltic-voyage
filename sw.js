@@ -1,7 +1,7 @@
 /* Baltic Voyage — service worker
    App shell is cached for offline use. Live data (weather, FX rates,
    map tiles) is fetched network-first and simply skipped when offline. */
-const CACHE = 'baltic-voyage-v10';
+const CACHE = 'baltic-voyage-v11';
 const SHELL = [
   './',
   './index.html',
