@@ -755,6 +755,22 @@ function findTimeNear(text,kwRe){
   const tm=TIME_RE.exec(text.slice(km.index,km.index+80)); // dates lack ':'/am-pm, so they're skipped
   return tm?normTime(tm[1]):null;
 }
+// A year for dates written without one ("July 1"). Prefer a year in the PDF, then the trip, then now.
+function pdfYear(text){
+  const m=String(text||'').match(/\b(20\d{2})\b/); if(m) return +m[1];
+  const sy=String((S.meta&&S.meta.startDate)||'').slice(0,4); if(/^\d{4}$/.test(sy)) return +sy;
+  return new Date().getFullYear();
+}
+// Parse a date that may omit the year, e.g. "July 1", "1 Jul", as well as full dates.
+function looseDate(str,defYear){
+  if(!str) return null;
+  const dm=DATE_RE.exec(str); if(dm){ const n=normDate(dm[1]); if(n) return n; }
+  let re=/\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/g, m;
+  while(m=re.exec(str)){ const mo=MONTHS[m[1].slice(0,3).toLowerCase()], d=+m[2]; if(mo&&d>=1&&d<=31&&defYear) return isoDate(defYear,mo,d); }
+  re=/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?\b/g;
+  while(m=re.exec(str)){ const mo=MONTHS[m[2].slice(0,3).toLowerCase()], d=+m[1]; if(mo&&d>=1&&d<=31&&defYear) return isoDate(defYear,mo,d); }
+  return null;
+}
 function parseReservation(text){
   const raw=String(text||'').replace(/ /g,' ');
   const flat=raw.replace(/\s+/g,' ').trim();
@@ -821,13 +837,86 @@ function readPdf(input,onText){
     reader.readAsArrayBuffer(file);
   }).catch(()=>toast('Couldn’t load the PDF reader — check your connection'));
 }
+// Multi-hotel itineraries: each stay sits under an "ACCOMMODATION" heading with
+// name / Confirmation / Check-in / Check-out lines. Pull every one, not just the first.
+function parseReservations(text){
+  const raw=String(text||'').replace(/ /g,' ');
+  const lines=raw.split('\n').map(l=>l.trim());
+  const defYear=pdfYear(raw);
+  const cityRes=CITIES.map(c=>({id:c.id,re:new RegExp('\\b'+c.name+'\\b','i')}));
+  const cityAt=[]; const anchors=[]; let curCity='';
+  for(let i=0;i<lines.length;i++){
+    const hit=cityRes.find(c=>c.re.test(lines[i])); if(hit) curCity=hit.id;
+    cityAt[i]=curCity;
+    if(/^accommodation$/i.test(lines[i])) anchors.push(i);
+  }
+  if(!anchors.length) return [];          // not a structured itinerary — caller falls back to single parse
+  const stop=/^(overview|day\s*\d|lgbtq|the journey|getting around)\b|practical notes/i;
+  const hotels=[];
+  for(const a of anchors){
+    const block=[];
+    for(let i=a+1;i<lines.length && i<a+16;i++){
+      if(!lines[i]) continue;
+      if(/^accommodation$/i.test(lines[i]) || stop.test(lines[i])) break;
+      block.push(lines[i]);
+    }
+    const h=hotelBlockFields(block,cityAt[a],defYear);
+    if(h.name) hotels.push(h);
+  }
+  return hotels;
+}
+function hotelBlockFields(block,city,defYear){
+  const out={}; if(city) out.city=city;
+  for(const l of block){                  // name = first line that isn't a labelled field
+    if(/^(confirmation|check[\s-]*in|check[\s-]*out|overview|accommodation|stop\b|nights?\b)/i.test(l)) continue;
+    if(l.replace(/[^A-Za-z]/g,'').length<2) continue;
+    out.name=l.replace(/\s{2,}/g,' ').trim(); break;
+  }
+  for(const l of block){
+    const cm=l.match(/confirmation\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\/-]{3,})/i);
+    if(cm){ out.confirmation=cm[1]; break; }
+  }
+  const ci=block.find(l=>/check[\s-]*in/i.test(l)), co=block.find(l=>/check[\s-]*out/i.test(l));
+  if(ci){ const d=looseDate(ci,defYear); if(d)out.checkIn=d; const t=TIME_RE.exec(ci); if(t){const nt=normTime(t[1]); if(nt)out.checkInTime=nt;} }
+  if(co){ const d=looseDate(co,defYear); if(d)out.checkOut=d; const t=TIME_RE.exec(co); if(t){const nt=normTime(t[1]); if(nt)out.checkOutTime=nt;} }
+  return out;
+}
 function importPDF(input){
   readPdf(input,text=>{
-    const fields=parseReservation(text);
-    const found=fields._found; delete fields._found;
+    const many=parseReservations(text);
+    if(many.length>1){ openHotelReview(many); return; }   // itinerary with several stays
+    const fields=many.length===1?many[0]:parseReservation(text);
+    const found=['name','city','checkIn','checkInTime','checkOut','checkOutTime','confirmation','address','phone'].filter(k=>fields[k]).length;
+    delete fields._found;
     toast(found?`Found ${found} detail${found!==1?'s':''} — please review`:'No details found — fill them in');
     openForm('hotel',null,fields);
   });
+}
+let pendingHotels=[];
+function openHotelReview(hotels){
+  pendingHotels=hotels;
+  $('#sheetTitle').textContent=`Review hotels (${hotels.length})`;
+  const rows=hotels.map((h,i)=>{
+    const c=cityById(h.city);
+    const dates=(h.checkIn?fmtDate(h.checkIn):'?')+' – '+(h.checkOut?fmtDate(h.checkOut):'?');
+    return `<label class="imp-row"><input type="checkbox" checked data-i="${i}">
+      <span class="imp-main"><span class="imp-t">${ic('bed')} ${esc(h.name||'Hotel')}</span>
+      <span class="imp-m">${dates} · ${c.flag} ${esc(c.name)}${h.confirmation?' · '+esc(h.confirmation):''}</span></span></label>`;
+  }).join('');
+  $('#sheetBody').innerHTML=`<p class="imp-hint">Found ${hotels.length} hotels in that PDF. Untick any you don't want, then add them — you can edit each one afterwards.</p>
+    <div class="imp-list">${rows}</div>
+    <button class="btn" style="width:100%;margin-top:14px;" onclick="confirmHotelImport()">Add selected to Hotels</button>`;
+  openSheet();
+}
+function confirmHotelImport(){
+  let n=0;
+  $('#sheetBody').querySelectorAll('input[type=checkbox]').forEach(b=>{
+    if(b.checked){ const h=pendingHotels[+b.dataset.i]; if(h){ S.hotels.push(Object.assign({id:uid()},h)); n++; } }
+  });
+  pendingHotels=[];
+  save(); closeSheet();
+  toast(n?`${n} hotel${n!==1?'s':''} added ✓`:'Nothing added');
+  render('hotels');
 }
 
 /* ---- Import a day-by-day itinerary from a PDF ---- */
@@ -1475,7 +1564,7 @@ function syncCard(){
 }
 
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,embedMapSrc,createSharedTrip,joinTrip,promptJoinTrip,stopSync,copyShareLink,startSync,get S(){return S;},syncState});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,confirmHotelImport,embedMapSrc,createSharedTrip,joinTrip,promptJoinTrip,stopSync,copyShareLink,startSync,parseReservations,get S(){return S;},syncState});
 
 /* ---- boot ---- */
 go('trip');
