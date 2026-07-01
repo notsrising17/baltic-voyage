@@ -1301,12 +1301,19 @@ function drawMarkers(){
 }
 
 /* ====================== TOOLS ====================== */
-let toolPanel='packing', phraseLang='fi';
+let toolPanel=null, toolChosen=false, phraseLang='fi';
+// Tools adapt to where you are in the trip: pack before you leave, then once the
+// trip has started Packing steps aside for what's useful on the ground.
+function tripStarted(){ const {start}=tripDates(); if(!start) return false; const t=new Date(); t.setHours(0,0,0,0); return t>=new Date(start+'T00:00:00'); }
+function toolOrder(){ return tripStarted()?['weather','phrasebook','currency','packing']:['packing','weather','phrasebook','currency']; }
+const TOOL_LABELS={packing:'🎒 Pack',phrasebook:'💬 Phrases',weather:'⛅ Weather',currency:'💶 Money'};
 function renderTools(){
+  const order=toolOrder();
+  if(!toolChosen || order.indexOf(toolPanel)<0) toolPanel=order[0];   // default to the trip-appropriate tool until one is picked
   $('#tools').innerHTML=`<div class="wrap">
     <div class="sec-head"><div><div class="eyebrow">Handy on the road</div><h2>Tools</h2></div></div>
     <div class="seg">
-      ${['packing','phrasebook','weather','currency'].map(p=>`<button class="${toolPanel===p?'active':''}" onclick="setTool('${p}')">${({packing:'🎒 Pack',phrasebook:'💬 Phrases',weather:'⛅ Weather',currency:'💶 Money'})[p]}</button>`).join('')}
+      ${order.map(p=>`<button class="${toolPanel===p?'active':''}" onclick="setTool('${p}')">${TOOL_LABELS[p]}</button>`).join('')}
     </div>
     <div id="tp-packing" class="toolpanel ${toolPanel==='packing'?'active':''}"></div>
     <div id="tp-phrasebook" class="toolpanel ${toolPanel==='phrasebook'?'active':''}"></div>
@@ -1315,7 +1322,7 @@ function renderTools(){
   </div>`;
   renderPacking(); renderPhrasebook(); renderWeather(); renderCurrency();
 }
-function setTool(p){toolPanel=p;renderTools();}
+function setTool(p){toolPanel=p;toolChosen=true;renderTools();}
 
 /* ---- Packing ---- */
 function renderPacking(){
