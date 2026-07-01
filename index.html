@@ -181,6 +181,27 @@ body.offline #offlineDot{display:block;}
 .tl-time{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;color:var(--amber-d);
   background:rgba(217,154,78,.13);padding:2px 7px;border-radius:6px;}
 
+/* ---- Days as a travel journal ---- */
+.item.plan .ihead{align-items:center;}
+.donebtn{width:30px;height:30px;flex:none;border-radius:50%;border:2px solid var(--line);background:var(--paper);
+  display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;}
+.donebtn svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0;}
+.item.plan.done .donebtn{background:var(--ok);border-color:var(--ok);}
+.item.plan.done .donebtn svg{opacity:1;}
+.item.plan.done{border-color:#bcd9c6;box-shadow:0 6px 22px rgba(62,142,98,.10),0 2px 6px rgba(62,142,98,.06);}
+.item.plan .m .tico{width:14px;height:14px;color:var(--amber-d);vertical-align:-.16em;}
+.favmark{color:var(--terra);font-size:13px;}
+.journal{margin:0 14px 12px;padding:10px 12px;background:rgba(217,154,78,.10);border-left:3px solid var(--amber);
+  border-radius:0 10px 10px 0;font-size:13.5px;line-height:1.5;color:var(--ink);font-style:italic;white-space:pre-wrap;}
+.item.plan .pnote{color:var(--muted);}
+.iact .fav{font-size:14px;}
+.iact .fav.on{color:var(--terra);}
+.logchk{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;color:var(--ink);margin:0 0 10px;}
+.logchk input{width:20px;height:20px;flex:none;accent-color:var(--teal-d);}
+.dayhead.today .dnum{color:var(--terra);}
+.today-badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  color:#fff;background:var(--terra);padding:2px 8px;border-radius:999px;margin-left:2px;vertical-align:middle;}
+
 /* ---------- Places / map ---------- */
 .filterbar{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch;}
 .filterbar::-webkit-scrollbar{display:none;}
@@ -1105,52 +1126,105 @@ function confirmItineraryImport(){
 }
 
 /* ====================== DAYS / ITINERARY ====================== */
+function todayISO(){ const d=new Date(); const z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
+function cityForDate(date){
+  const s=S.itinerary.find(p=>p.date===date&&p.city); if(s) return s.city;
+  const h=S.hotels.find(h=>h.checkIn&&h.checkOut&&date>=h.checkIn&&date<h.checkOut); if(h) return h.city;
+  return CITIES[0].id;
+}
 function renderDays(){
   const items=[...S.itinerary].sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.time||'').localeCompare(b.time||''));
+  const today=todayISO(), doneCount=items.filter(p=>p.done).length;
   let body;
   if(!items.length){
     body=`<div class="empty"><span class="em-ico">${ic('map')}</span>
-      <p>No plans yet. Build your day-by-day itinerary as the trip takes shape.</p>
-      <button class="btn" onclick="openForm('itinerary')">+ Add a plan</button></div>`;
+      <p>Your journal is empty. Log what you get up to each day — or add plans as the trip takes shape.</p>
+      <button class="btn" onclick="logMoment()">＋ Log a moment</button></div>`;
   } else {
     const byDate={};
     items.forEach(it=>{ (byDate[it.date||'Unscheduled']=byDate[it.date||'Unscheduled']||[]).push(it); });
-    body=Object.keys(byDate).map(date=>{
-      const rows=byDate[date].map(renderPlanCard).join('');
-      const cities=[...new Set(byDate[date].map(i=>i.city))].map(id=>cityById(id).flag).join(' ');
+    const keys=Object.keys(byDate).sort((a,b)=>(a==='Unscheduled')-(b==='Unscheduled')||a.localeCompare(b));
+    body=keys.map(date=>{
+      const day=byDate[date], rows=day.map(renderPlanCard).join('');
+      const cities=[...new Set(day.map(i=>i.city))].map(id=>cityById(id).flag).join(' ');
+      const ddone=day.filter(p=>p.done).length, isToday=date===today;
       const head = date==='Unscheduled'
-        ? `<div class="dayhead"><span class="dnum">Unscheduled</span></div>`
-        : `<div class="dayhead"><span class="dnum">${fmtDate(date,{day:'numeric',month:'long'})}</span>
-            <span class="ddow">${dow(date)}</span><span class="dcity">${cities}</span></div>`;
-      return `<div class="daygroup">${head}${rows}</div>`;
+        ? `<div class="dayhead"><span class="dnum">Unscheduled</span><span class="dcity">${cities}</span></div>`
+        : `<div class="dayhead${isToday?' today':''}"><span class="dnum">${fmtDate(date,{day:'numeric',month:'long'})}</span>
+            <span class="ddow">${dow(date)} · ${ddone}/${day.length} done</span>
+            ${isToday?'<span class="today-badge">Today</span>':''}<span class="dcity">${cities}</span></div>`;
+      return `<div class="daygroup">${head}${rows}
+        <button class="btn ghost sm" style="margin:2px 0 6px;" onclick="logMoment('${date==='Unscheduled'?'':date}')">＋ Log a moment</button></div>`;
     }).join('');
   }
   $('#days').innerHTML=`<div class="wrap">
-    <div class="sec-head"><div><div class="eyebrow">Itinerary</div><h2>Days</h2>
-      <div class="sub">${items.length} plan${items.length!==1?'s':''} across your trip</div></div>
-      <div style="display:flex;gap:8px;flex:none;">
+    <div class="sec-head"><div><div class="eyebrow">Travel journal</div><h2>Days</h2>
+      <div class="sub">${items.length} entr${items.length!==1?'ies':'y'} · ${doneCount} done</div></div>
+      <div style="display:flex;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end;">
         <button class="btn ghost sm" onclick="document.getElementById('itinPdf').click()">${ic('upload')} PDF</button>
-        <button class="btn sm" onclick="openForm('itinerary')">+ Plan</button>
+        <button class="btn ghost sm" onclick="openForm('itinerary')">＋ Plan</button>
+        <button class="btn sm" onclick="logMoment()">＋ Log</button>
       </div>
       <input id="itinPdf" type="file" accept="application/pdf,.pdf" style="display:none;" onchange="importItineraryPDF(this)"></div>
     ${body}</div>`;
 }
 function renderPlanCard(it){
   const c=cityById(it.city); const t=PLAN_TYPES[it.type]||PLAN_TYPES.Other;
-  return `<div class="item">
+  const done=!!it.done, fav=!!it.fav;
+  return `<div class="item plan${done?' done':''}">
     <div class="ihead">
-      <div class="ico">${ic(t.icon)}</div>
-      <div class="ititle"><div class="t">${esc(it.title||'Untitled')}</div>
-        <div class="m">${c.flag} ${esc(c.name)}${it.location?' · '+esc(it.location):''}</div></div>
+      <button class="donebtn" onclick="togglePlanDone('${it.id}')" title="${done?'Done — tap to undo':'Mark as done'}">${ic('check')}</button>
+      <div class="ititle"><div class="t">${esc(it.title||'Untitled')}${fav?' <span class="favmark">♥</span>':''}</div>
+        <div class="m"><span class="tico">${ic(t.icon)}</span> ${c.flag} ${esc(c.name)}${it.location?' · '+esc(it.location):''}</div></div>
       ${it.time?`<span class="tl-time">${esc(it.time)}</span>`:''}
     </div>
-    ${it.notes?`<div class="ibody"><div class="kv"><span class="v">${esc(it.notes)}</span></div></div>`:''}
+    ${it.notes?`<div class="ibody"><div class="pnote">${esc(it.notes)}</div></div>`:''}
+    ${it.log?`<div class="journal">${esc(it.log)}</div>`:''}
     <div class="iact">
-      <button onclick="openForm('itinerary','${it.id}')">${ic('pencil')} Edit</button>
-      ${it.location?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.location+' '+c.name)}" target="_blank" rel="noopener">${ic('map')} Map</a>`:''}
+      <button onclick="openLog('${it.id}')">${ic('pencil')} ${it.log?'Journal':'Log it'}</button>
+      <button class="fav${fav?' on':''}" onclick="togglePlanFav('${it.id}')">♥</button>
+      <button onclick="openForm('itinerary','${it.id}')">Edit</button>
       <button class="del" onclick="del('itinerary','${it.id}')">${ic('trash')} Delete</button>
     </div>
   </div>`;
+}
+function togglePlanDone(id){const p=S.itinerary.find(x=>x.id===id);if(p){p.done=!p.done;save();renderDays();}}
+function togglePlanFav(id){const p=S.itinerary.find(x=>x.id===id);if(p){p.fav=!p.fav;save();renderDays();}}
+let logId=null;
+function logMoment(date){
+  date=(date||todayISO());
+  const it={id:uid(),title:'',date,time:'',city:cityForDate(date),type:'Other',location:'',notes:'',log:'',done:true,fav:false};
+  S.itinerary.push(it); save(); openLog(it.id,true);
+}
+function openLog(id,isNew){
+  logId=id; const it=S.itinerary.find(x=>x.id===id); if(!it) return;
+  $('#sheetTitle').textContent=isNew?'Log a moment':'Journal';
+  $('#sheetBody').innerHTML=`<form id="logForm" onsubmit="return false;">
+    <div class="field"><label>What</label><input id="logTitle" value="${esc(it.title||'')}" placeholder="e.g. Sunset sauna at Allas"></div>
+    <div class="field"><label>Date</label><input id="logDate" type="date" value="${esc(it.date||'')}"></div>
+    <div class="field"><label>Journal — what we actually did</label>
+      <textarea id="logText" placeholder="How it went, highlights, who we met, what to remember…">${esc(it.log||'')}</textarea></div>
+    <label class="logchk"><input type="checkbox" id="logDone" ${it.done?'checked':''}> We did this</label>
+    <label class="logchk"><input type="checkbox" id="logFav" ${it.fav?'checked':''}> <span class="favmark">♥</span> Highlight this moment</label>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button type="button" class="btn" style="flex:1;justify-content:center;" onclick="saveLog()">Save</button>
+      <button type="button" class="btn ghost" style="flex:none;" onclick="cancelLog()">Cancel</button>
+    </div>
+  </form>`;
+  openSheet();
+}
+function saveLog(){
+  const it=S.itinerary.find(x=>x.id===logId); if(!it){closeSheet();return;}
+  it.title=($('#logTitle').value||'').trim()||'Moment';
+  it.date=$('#logDate').value||it.date;
+  it.log=($('#logText').value||'').trim();
+  it.done=$('#logDone').checked; it.fav=$('#logFav').checked;
+  save(); closeSheet(); renderDays(); toast('Journal saved ✓');
+}
+function cancelLog(){
+  const it=S.itinerary.find(x=>x.id===logId);
+  if(it && !it.title && !it.log) S.itinerary=S.itinerary.filter(x=>x.id!==logId);  // drop an abandoned blank moment
+  save(); closeSheet(); renderDays();
 }
 
 /* ====================== HOTELS ====================== */
@@ -1686,7 +1760,7 @@ function syncCard(){
 }
 
 /* ---- expose handlers used in inline HTML ---- */
-Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,confirmHotelImport,embedMapSrc,createSharedTrip,joinTrip,promptJoinTrip,stopSync,copyShareLink,startSync,parseReservations,get S(){return S;},syncState});
+Object.assign(window,{openForm,del,setFilter,toggleVisited,setTool,togglePack,setLang,speak,setHomeCur,fxSwap,fetchRates,openTripForm,exportData,importData,importPDF,parseReservation,importItineraryPDF,parseItinerary,confirmItineraryImport,confirmHotelImport,embedMapSrc,createSharedTrip,joinTrip,promptJoinTrip,stopSync,copyShareLink,startSync,parseReservations,togglePlanDone,togglePlanFav,openLog,saveLog,cancelLog,logMoment,get S(){return S;},syncState});
 
 /* ---- boot ---- */
 go('trip');
