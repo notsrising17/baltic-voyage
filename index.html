@@ -983,35 +983,51 @@ function parseSegment(line){
   title=title.replace(/[.;,]+$/,'').trim();
   return {period,time,title,notes,type:segType(period,title,notes)};
 }
+// Fuzzy keyword matching, to line a "·" highlight up with its descriptive segment.
+const KW_STOP=new Set(['from','with','your','book','ahead','hour','hours','then','this','that','tour','near','back','open','time','area','best','good','also','into','onto','over','about','before','after','first','full','easy','take','walk','here','they','will','still','most','some','more','very','night','day']);
+function kwSet(s){ return new Set(String(s||'').toLowerCase().split(/[^\p{L}]+/u).filter(w=>w.length>=4&&!KW_STOP.has(w))); }
+function shareKw(a,b){ const A=kwSet(a); for(const w of kwSet(b)) if(A.has(w)) return true; return false; }
+function isSummaryLine(l){ return /\s·\s/.test(l) && !/Confidential|Personal Travel|FINLAND & THE BALTICS|Confirmation|^\s*JU(NE|LY)\b/i.test(l); }
+function junkItem(s){ if(s.length<2||!/\p{L}/u.test(s)) return true; if(/^conf(irmation)?\b/i.test(s)) return true; if(/^\S+\.(com|eu|fi|ee|lv|lt)\b\s*$/i.test(s)) return true; return false; }
+function cleanItem(s){ return s.replace(/\s—\s*\S+\.(com|eu|fi|ee|lv|lt)\b.*$/i,'').replace(/\s{2,}/g,' ').trim().slice(0,80); }
+function itemTime(s){ const m=TIME_RE.exec(s); return m?(normTime(m[1])||''):''; }
+// Build plans from a structured day-by-day itinerary: every "·" highlight becomes
+// a plan, enriched with the matching time-of-day segment's time/notes/type.
 function parseDayItinerary(text){
   const raw=String(text||'').replace(/ /g,' ');
   const lines=raw.split('\n').map(l=>l.trim());
   const defYear=pdfYear(raw);
   const dayHdr=/^(?:mon|tues|wednes|thurs|fri|satur|sun)day,\s+([A-Za-z]{3,9})\.?\s+(\d{1,2})\b\s*[—-]?\s*(.*)$/i;
-  const out=[];
-  let curCity=CITIES[0].id, curDate='', dDate='', dTitle='', dCity='', dSegs=0, hadDay=false;
-  const flush=()=>{ if(hadDay && dSegs===0 && dTitle.length>1) out.push({title:dTitle.slice(0,80),date:dDate,time:'',city:dCity,type:guessPlanType(dTitle),notes:''}); };
+  const blocks=[]; let cur=null, curCity=CITIES[0].id;
   for(const line of lines){
     const ce=CITIES.find(c=>c.name.toLowerCase()===line.toLowerCase()); if(ce) curCity=ce.id;
     const dh=dayHdr.exec(line);
     if(dh){
-      flush();
       const mo=MONTHS[dh[1].slice(0,3).toLowerCase()], d=+dh[2];
-      dDate=(mo&&d)?isoDate(defYear,mo,d):''; curDate=dDate;
-      dTitle=(dh[3]||'').replace(/\(~?[^)]*\)/g,'').replace(/\s{2,}/g,' ').trim();
-      dCity=curCity; dSegs=0; hadDay=true;
-      continue;
+      cur={date:(mo&&d)?isoDate(defYear,mo,d):'', title:(dh[3]||'').replace(/\(~?[^)]*\)/g,'').replace(/\s{2,}/g,' ').trim(), city:curCity, lines:[]};
+      blocks.push(cur); continue;
     }
-    if(!curDate) continue;
-    const seg=parseSegment(line);
-    if(seg){
-      let title=seg.title;
-      if(/^[a-z]/.test(title)||seg.period==='full day') title=dTitle||title;   // weak segment title → use the day's title
-      out.push({title:title.slice(0,80), date:curDate, time:seg.time, city:curCity, type:seg.type, notes:seg.notes.slice(0,300)});
-      dSegs++;
-    }
+    if(cur) cur.lines.push(line);
   }
-  flush();
+  const out=[];
+  for(const b of blocks){
+    const segs=b.lines.map(parseSegment).filter(Boolean);
+    const used=segs.map(()=>false);
+    const items=[]; b.lines.forEach(l=>{ if(isSummaryLine(l)) l.split(/\s+·\s+/).forEach(s=>{ s=s.trim(); if(s) items.push(s); }); });
+    const plans=[];
+    for(const it of items){
+      if(junkItem(it)) continue;
+      let mi=-1;
+      for(let j=0;j<segs.length;j++){ if(!used[j] && shareKw(it, segs[j].title+' '+segs[j].notes)){ mi=j; break; } }
+      let time='', notes='', type='';
+      if(mi>=0){ used[mi]=true; time=segs[mi].time; notes=segs[mi].notes; type=segs[mi].type; }
+      else { time=itemTime(it); type=segType('',it,''); }
+      plans.push({title:cleanItem(it), date:b.date, time, city:b.city, type:type||'Other', notes:String(notes).slice(0,300)});
+    }
+    segs.forEach((s,j)=>{ if(used[j]) return; let title=s.title; if(/^[a-z]/.test(title)||s.period==='full day') title=b.title||title; plans.push({title:title.slice(0,80), date:b.date, time:s.time, city:b.city, type:s.type, notes:s.notes.slice(0,300)}); });
+    if(!plans.length && b.title.length>1) plans.push({title:b.title.slice(0,80), date:b.date, time:'', city:b.city, type:guessPlanType(b.title), notes:''});
+    out.push(...plans);
+  }
   return out;
 }
 function importItineraryPDF(input){
