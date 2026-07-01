@@ -2,7 +2,7 @@
    The app shell is cached for offline use. The HTML is fetched network-first so
    new versions appear immediately when online; other assets stay cache-first.
    On activation the new worker reloads open windows so updates apply at once. */
-const CACHE = 'baltic-voyage-v14';
+const CACHE = 'baltic-voyage-v15';
 const SHELL = [
   './',
   './index.html',
