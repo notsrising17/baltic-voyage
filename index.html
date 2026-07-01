@@ -991,6 +991,40 @@ function isSummaryLine(l){ return /\s·\s/.test(l) && !/Confidential|Personal Tr
 function junkItem(s){ if(s.length<2||!/\p{L}/u.test(s)) return true; if(/^conf(irmation)?\b/i.test(s)) return true; if(/^\S+\.(com|eu|fi|ee|lv|lt)\b\s*$/i.test(s)) return true; return false; }
 function cleanItem(s){ return s.replace(/\s—\s*\S+\.(com|eu|fi|ee|lv|lt)\b.*$/i,'').replace(/\s{2,}/g,' ').trim().slice(0,80); }
 function itemTime(s){ const m=TIME_RE.exec(s); return m?(normTime(m[1])||''):''; }
+// Find a plan's description in the day's prose: the parenthetical or clause that
+// follows the place name (e.g. "Palmse Manor (18th-century Baltic German estate)").
+function findDetail(title,prose){
+  if(!prose) return '';
+  const clean=String(title).replace(/\s*\([^)]*\)/g,'').split(/\s+[—–-]\s+/)[0].trim();
+  if(clean.length<3) return '';
+  const e=clean.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  let m=new RegExp(e+'\\s*\\(([^)]{4,160})\\)','i').exec(prose);
+  if(m) return m[1].trim().replace(/\s{2,}/g,' ');
+  m=new RegExp(e+'\\s*[:,—–-]?\\s*([^.]{10,180}\\.)','i').exec(prose);
+  if(m){ const s=m[1].trim().replace(/\s{2,}/g,' '); if(s.length>=10) return s; }
+  return '';
+}
+// Rejoin paragraph lines the PDF wrapped, so descriptions aren't cut mid-sentence.
+// A blank line is a hard break; structural lines (headers, segments, "·" lists) start fresh.
+function mergeWrapped(lines){
+  const per=SEG_PERIODS.map(x=>x[0]);
+  const allcaps=l=>/^[A-ZÀ-Ÿ][A-ZÀ-Ÿ &'’]{3,}$/.test(l);
+  const isStruct=l=>{
+    if(isSummaryLine(l)||allcaps(l)) return true;
+    if(/^(?:mon|tues|wednes|thurs|fri|satur|sun)day,/i.test(l)) return true;
+    if(/^(DAY|STOP|ACCOMMODATION|OVERVIEW|Confirmation|Check-in|Check-out|LGBTQ)\b/i.test(l)) return true;
+    if(/^[→•]/.test(l)) return true;
+    const low=l.toLowerCase(); return per.some(w=>low.startsWith(w+' ')||low.startsWith(w+':'));
+  };
+  const out=[];
+  for(const l of lines){
+    if(l===''){ out.push(''); continue; }
+    const prev=out.length?out[out.length-1]:'';
+    if(prev && !/[.!?:]\s*$/.test(prev) && !isSummaryLine(prev) && !allcaps(prev) && !isStruct(l)) out[out.length-1]=prev+' '+l;
+    else out.push(l);
+  }
+  return out.filter(x=>x!=='');
+}
 // Build plans from a structured day-by-day itinerary: every "·" highlight becomes
 // a plan, enriched with the matching time-of-day segment's time/notes/type.
 function parseDayItinerary(text){
@@ -1011,9 +1045,10 @@ function parseDayItinerary(text){
   }
   const out=[];
   for(const b of blocks){
-    const segs=b.lines.map(parseSegment).filter(Boolean);
+    const blines=mergeWrapped(b.lines);
+    const segs=blines.map(parseSegment).filter(Boolean);
     const used=segs.map(()=>false);
-    const items=[]; b.lines.forEach(l=>{ if(isSummaryLine(l)) l.split(/\s+·\s+/).forEach(s=>{ s=s.trim(); if(s) items.push(s); }); });
+    const items=[]; blines.forEach(l=>{ if(isSummaryLine(l)) l.split(/\s+·\s+/).forEach(s=>{ s=s.trim(); if(s) items.push(s); }); });
     const plans=[];
     for(const it of items){
       if(junkItem(it)) continue;
@@ -1026,6 +1061,8 @@ function parseDayItinerary(text){
     }
     segs.forEach((s,j)=>{ if(used[j]) return; let title=s.title; if(/^[a-z]/.test(title)||s.period==='full day') title=b.title||title; plans.push({title:title.slice(0,80), date:b.date, time:s.time, city:b.city, type:s.type, notes:s.notes.slice(0,300)}); });
     if(!plans.length && b.title.length>1) plans.push({title:b.title.slice(0,80), date:b.date, time:'', city:b.city, type:guessPlanType(b.title), notes:''});
+    const prose=blines.filter(l=>!isSummaryLine(l)).join(' ');   // pull descriptions from the day's prose
+    plans.forEach(p=>{ if(!p.notes){ const dt=findDetail(p.title,prose); if(dt) p.notes=dt.slice(0,240); } });
     out.push(...plans);
   }
   return out;
